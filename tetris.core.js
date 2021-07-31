@@ -1,4 +1,75 @@
-console.log("hello leiizhao");
+function clone(tetris, cloneName = "default") {
+  let temp = new Tetris({});
+  temp.clone(tetris);
+  temp.cloneDeep = tetris.cloneDeep?tetris.cloneDeep + 1:1;
+  temp.cloneName = cloneName;
+  return temp;
+}
+
+function deepClone(target) {
+    const map = new WeakMap()
+    
+    function isObject(target) {
+        return (typeof target === 'object' && target ) || typeof target === 'function'
+    }
+
+    function clone(data) {
+        if (!isObject(data)) {
+            return data
+        }
+        if ([Date, RegExp].includes(data.constructor)) {
+            return new data.constructor(data)
+        }
+        if (typeof data === 'function') {
+            // return new Function('return ' + data.toString())()
+            return data.bind(this);
+        }
+        const exist = map.get(data)
+        if (exist) {
+            return exist
+        }
+        if (data instanceof Map) {
+            const result = new Map()
+            map.set(data, result)
+            data.forEach((val, key) => {
+                if (isObject(val)) {
+                    result.set(key, clone(val))
+                } else {
+                    result.set(key, val)
+                }
+            })
+            return result
+        }
+        if (data instanceof Set) {
+            const result = new Set()
+            map.set(data, result)
+            data.forEach(val => {
+                if (isObject(val)) {
+                    result.add(clone(val))
+                } else {
+                    result.add(val)
+                }
+            })
+            return result
+        }
+        const keys = Reflect.ownKeys(data)
+        const allDesc = Object.getOwnPropertyDescriptors(data)
+        const result = Object.create(Object.getPrototypeOf(data), allDesc)
+        map.set(data, result)
+        keys.forEach(key => {
+            const val = data[key]
+            if (isObject(val)) {
+                result[key] = clone(val)
+            } else {
+                result[key] = val
+            }
+        })
+        return result
+    }
+
+    return clone(target)
+}
+
 /*
  * @Author: geek
  * @LastEditors: geek
@@ -46,6 +117,21 @@ console.log("hello leiizhao");
       this.init(opts);
     }
 
+    clone(tetris) {
+      this.shapeIndex = deepClone(tetris.shapeIndex);
+      this.stateIndex = deepClone(tetris.stateIndex);
+      this.grids = deepClone(tetris.grids);
+      this.brickCount = deepClone(tetris.brickCount);
+      this.curRandomNum = deepClone(tetris.curRandomNum);
+      this.maxBrickCount = deepClone(tetris.maxBrickCount);
+      this.curBrickCenterPos = deepClone(tetris.curBrickCenterPos);
+      this.curBrickRawInfo = deepClone(tetris.curBrickRawInfo);
+      this.curBrickInfo = deepClone(tetris.curBrickInfo);
+      this.nextBrickRawInfo = deepClone(tetris.nextBrickRawInfo);
+      this.score = deepClone(tetris.score);
+      this.status = deepClone(tetris.status);
+      this.opRecord = deepClone(tetris.opRecord);
+    }
     /**
      * @description: 实例化初始函数
      * @param {object} opts 配置选项
@@ -533,12 +619,147 @@ console.log("hello leiizhao");
         this.nextBrickRawInfo = nextBrickRawInfo;
       }
 
+      const ret = this.think(this);
+      console.log(ret);
+
       return { isValid, brickCount: this.brickCount };
     }
 
-    // getNextNBrick(numBrick, randonNum) {
-      
-    // }
+    //  for AI
+    getNextNBrick(numBrick) {
+
+      let bricks = []
+
+      let randomNum = this.curRandomNum;
+      let brickCount = this.brickCount;
+
+      const curBrickCenterPos = defaultBrickCenterPos.slice();
+
+      for (let index = 0; index < numBrick; index++) {
+        randomNum = this.getRandomNum(randomNum)
+        brickCount = brickCount + 1;
+
+        const { brickRawInfo: nextBrickRawInfo } = this.getBrickInfo(
+          randomNum,
+          brickCount,
+          curBrickCenterPos,
+          true
+        );
+
+        bricks.push(nextBrickRawInfo)
+      }
+
+      return bricks
+    }
+
+    do(){
+      const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
+      this.move('down', bottom);
+      const { topTouched, isRoundLimited } = this.update();
+
+      // 触顶或者超过游戏的最大方块数量后，结束游戏
+      if (topTouched || isRoundLimited) {
+        const { maxBrickCount, brickCount } = this;
+        console.log("game over");
+      } 
+      console.log(this.getSnapshot().gridsStr);
+    }
+
+    evaluate(tetris) {
+      // tetris.update();
+      return tetris.score;
+    }
+
+    thinkOneStep(tetris, path, step = 1){
+      let ret = [];
+      //旋转3次，4种姿态
+      for (let index = 0; index < 4; index++) {
+        let temp_state = clone(tetris);
+        if (index > 0) {
+          temp_state.rotate();
+        }
+
+        //不移动
+        const temp_mv = clone(temp_state, "temp_mv_" + index + "_" + "idle");
+        temp_mv.do();
+        //TODO temp_mv.update()
+        if(step == 1){
+          let newpath = [...path, {           
+            move : ["idle", 0],
+            rotate : index
+          }];
+          ret.push({
+            score : this.evaluate(temp_mv), 
+            tetris : temp_mv,
+            path : newpath
+          });
+        }else{
+          const r = this.thinkOneStep(temp_mv, path, step - 1);
+          ret.concat(r);
+        }
+        
+        //左右可移动距离
+        let { left, right } = temp_state.getBrickGaps(temp_state.gridConfig, temp_state.curBrickInfo, temp_state.grids);
+        
+        //左边
+        for (let mvCount = 0; mvCount < left; mvCount++) {
+          const temp_mv = clone(temp_state);
+          temp_mv.move("left", mvCount + 1);
+          temp_mv.do();
+          let newpath = [...path, {           
+            move : ["left", mvCount + 1],
+            rotate : index
+          }]
+          if(step == 1){
+            ret.push({
+              score : this.evaluate(temp_mv), 
+              tetris : temp_mv,
+              path : newpath
+            });
+          }else{
+            const r = this.thinkOneStep(temp_mv, pathnewpath, step - 1);
+            ret.concat(r);
+          }
+        }
+
+        //右边
+        for (let mvCount = 0; mvCount < right; mvCount++) {
+          const temp_mv = clone(temp_state);
+          temp_mv.move("right", mvCount + 1);
+          temp_mv.do();
+          let newpath = [...path, {           
+            move : ["right", mvCount + 1],
+            rotate : index
+          }]
+          if(step == 1){
+            ret.push({
+              score : this.evaluate(temp_mv), 
+              tetris : temp_mv,
+              path : newpath
+            });
+          }else{
+            const r = this.thinkOneStep(temp_mv, pathnewpath, step - 1);
+            ret.concat(r);
+          }
+        }       
+      }
+
+      return ret;
+    }
+
+    think(tetris, stepCount = 1) {
+      let temp = clone(tetris, "temp");
+
+      let path = []
+      let ret = this.thinkOneStep(temp, path, stepCount);
+      ret.sort((x, y)=>{
+        return y.score-x.score;
+      });
+
+      return ret[0].path[0];
+    }
+
+    //  AI end
 
     /**
      * @description: 清屏操作（动画外置，作为参数传入）
