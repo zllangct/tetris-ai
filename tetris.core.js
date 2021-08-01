@@ -711,10 +711,10 @@ function deepClone(target) {
         + (-7.899265427351652) * emptyHoles                    
         + (-3.3855972247263626) * wellNums  
 
-        + (-0.5) * holesDepth
+        // + (-0.5) * holesDepth
 
-      console.log(tetris.getSnapshot().gridsStr);
-      console.log('score:' + ret);
+      // console.log(tetris.getSnapshot().gridsStr);
+      // console.log('score:' + ret);
 
       return ret;
     }
