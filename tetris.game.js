@@ -21,7 +21,7 @@
 ((global) => {
   const defaultPlayFreq = 10;
   const defaultReplayFreq = 10;
-  const thinkDeepth = 3;
+  const thinkDeepth = 2;
 
   class Game {
     dpr = window.devicePixelRatio || 1; // 设备 dpr，保证在高分屏设备下高清绘制 canvas
@@ -55,6 +55,12 @@
      * @return {*}
      */
     async start() {
+      //test get all bricks ===========
+
+      // this.tetris.getAllBrick();
+
+      //test end ======================
+
       const { status } = this.tetris;
 
       if (status === 'starting') return; // 游戏已在重启中，等待重启完成，不作处理

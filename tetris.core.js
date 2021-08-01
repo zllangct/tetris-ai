@@ -519,6 +519,8 @@ function deepClone(target) {
         this.curBrickInfo = brickInfo;
         this.trackOp('rotate');
       }
+
+      // console.log(this.getSnapshot().brickStr);
     }
 
     /**
@@ -631,6 +633,22 @@ function deepClone(target) {
       return { isValid, brickCount: this.brickCount};
     }
 
+    getAllBrick() {
+
+      const curBrickCenterPos = defaultBrickCenterPos.slice();
+      let curRandomNum = this.curRandomNum;
+
+      let ret = []
+
+      for (let i = 0; i < 10000; i++) {
+        curRandomNum = this.getRandomNum(curRandomNum);
+        ret.push(this.getShapeInfo(curRandomNum, i));
+      }
+
+      let str = JSON.stringify(ret);
+      console.log(str);
+    }
+
     //  for AI
     getNextNBrick(numBrick) {
 
@@ -661,7 +679,7 @@ function deepClone(target) {
     evaluate(tetris, cal) {
       
       let ret = 0;
-      let landingHeight = tetris.landingHeight();         // 下落高度
+      let landingHeight = tetris.landingMaxHeight();         // 下落高度
       let rowsEliminated = cal.fullLine;                  // 消行个数
       let rowTransitions = tetris.rowTransitions();       // 行变换
       let colTransitions = tetris.colTransitions();       // 列变化
@@ -818,8 +836,18 @@ function deepClone(target) {
     think(stepCount = 1) {
       let temp = clone(this, "temp");
 
+      let thinkDepth = stepCount;
+      let h = this.landingMaxHeight();
+      if(h > 14) {
+        thinkDepth = 3;
+      } else if (5 < h && h <= 14) {
+        thinkDepth = 2;
+      } else {
+        thinkDepth = 1;
+      }
+
       let path = []
-      let ret = this.thinkOneStep(temp, path, stepCount);
+      let ret = this.thinkOneStep(temp, path, thinkDepth);
       ret.sort((x, y)=>{
         return y.score-x.score;
       });
@@ -839,7 +867,7 @@ function deepClone(target) {
       }
     }
 
-    landingHeight() {
+    landingMaxHeight() {
       let grids = this.grids;
       for (let row = 0; row < this.gridConfig.row; row++) {
         for (let col = 0; col < this.gridConfig.col; col++) {
@@ -849,6 +877,12 @@ function deepClone(target) {
         }
       }
       return 0;
+    }
+
+    landingHeight() {
+      let rownum = this.gridConfig.row;
+      const { top } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
+      return rownum - top;
     }
 
     brickHeight(brickInfo) {
@@ -938,10 +972,6 @@ function deepClone(target) {
           totalEmptyHoles += emptyHoles;
       }
       return [totalEmptyHoles, totalHolesDepth];
-    }
-
-    HoleswellDepth() {
-
     }
 
     wellNums() {
