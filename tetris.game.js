@@ -19,8 +19,9 @@
  *
  */
 ((global) => {
-  const defaultPlayFreq = 1000;
+  const defaultPlayFreq = 10;
   const defaultReplayFreq = 10;
+  const thinkDeepth = 1;
 
   class Game {
     dpr = window.devicePixelRatio || 1; // 设备 dpr，保证在高分屏设备下高清绘制 canvas
@@ -63,6 +64,7 @@
       this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
       this.tetris.initGrids(); // 初始格子
       this.tetris.initBrick(); // 初始方块
+      this.tetris.think(thinkDeepth); //ai
       this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
     }
 
@@ -134,6 +136,8 @@
         } else {
           // 未触顶且未超过游戏的最大方块数量，新建方块，并判断新建的方块是否合法
           const { isValid, brickCount } = this.tetris.initBrick();
+
+          this.tetris.think(thinkDeepth);
 
           isStepValid = isValid;
 

@@ -368,6 +368,12 @@ function deepClone(target) {
       this.opts.onScoreChange &&
         this.opts.onScoreChange({ status: this.status, score: this.score });
 
+      ret.cal = {
+        score : score,
+        occupiedGridCount : occupiedGridCount,
+        fullLine : fullRowIndexes.length
+      }
+
       return ret;
     }
 
@@ -542,7 +548,7 @@ function deepClone(target) {
         if (type === 'D' && stepCount > 1) {
           this.opRecord.push(`D${stepCount}`);
         } else {
-          this.opRecord.push(`${type}${type !== 'N' ? '1' : ''}`);
+          this.opRecord.push(`${type}${type !== 'N' ?  stepCount: ''}`);
         }
       }
     }
@@ -619,10 +625,7 @@ function deepClone(target) {
         this.nextBrickRawInfo = nextBrickRawInfo;
       }
 
-      const ret = this.think(this);
-      console.log(ret);
-
-      return { isValid, brickCount: this.brickCount };
+      return { isValid, brickCount: this.brickCount};
     }
 
     //  for AI
@@ -655,19 +658,45 @@ function deepClone(target) {
     do(){
       const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
       this.move('down', bottom);
-      const { topTouched, isRoundLimited } = this.update();
-
+      const { topTouched, isRoundLimited, cal } = this.update();
+     
       // 触顶或者超过游戏的最大方块数量后，结束游戏
       if (topTouched || isRoundLimited) {
         const { maxBrickCount, brickCount } = this;
         console.log("game over");
       } 
       console.log(this.getSnapshot().gridsStr);
+      // console.log(cal);
+
+      return cal
     }
 
-    evaluate(tetris) {
-      // tetris.update();
-      return tetris.score;
+    evaluate(tetris, cal) {
+      
+      let ret = 0;
+      // let landingHeight = tetris.landingHeight();         // 下落高度
+      let rowsEliminated = cal.fullLine;                  // 消行个数
+      // let rowTransitions = tetris.rowTransitions();       // 行变换
+      // let colTransitions = tetris.colTransitions();       // 列变化
+      let emptyHoles = tetris.emptyHoles();               // 空洞个数
+      // let wellNums = tetris.wellNums();                   // 井
+
+      let aggregateHeight = tetris.aggregateHeight();
+      let bumpiness = tetris.bumpiness();
+
+      ret = -this.heightWeight * aggregateHeight; 
+              + this.linesWeight * rowsEliminated;
+              - this.holesWeight * emptyHoles; 
+              - this.bumpinessWeight * bumpiness;
+
+      // ret = (-4.500158825082766) * landingHeight            
+      //       + (3.4181268101392694) * rowsEliminated         
+      //       + (-3.2178882868487753) * rowTransitions                
+      //       + (-9.348695305445199) * colTransitions              
+      //       + (-7.899265427351652) * emptyHoles                    
+      //       + (-3.3855972247263626) * wellNums                    
+
+      return ret;
     }
 
     thinkOneStep(tetris, path, step = 1){
@@ -681,21 +710,22 @@ function deepClone(target) {
 
         //不移动
         const temp_mv = clone(temp_state, "temp_mv_" + index + "_" + "idle");
-        temp_mv.do();
+        let cal = temp_mv.do();
         //TODO temp_mv.update()
+        let newpath = [...path, {           
+          move : ["idle", 0],
+          rotate : index
+        }];
         if(step == 1){
-          let newpath = [...path, {           
-            move : ["idle", 0],
-            rotate : index
-          }];
           ret.push({
-            score : this.evaluate(temp_mv), 
-            tetris : temp_mv,
+            score : this.evaluate(temp_mv, cal), 
+            // tetris : temp_mv,
             path : newpath
           });
         }else{
-          const r = this.thinkOneStep(temp_mv, path, step - 1);
-          ret.concat(r);
+          temp_mv.initBrick();
+          const r = this.thinkOneStep(temp_mv, newpath, step - 1);
+          ret = ret.concat(r);
         }
         
         //左右可移动距离
@@ -705,20 +735,21 @@ function deepClone(target) {
         for (let mvCount = 0; mvCount < left; mvCount++) {
           const temp_mv = clone(temp_state);
           temp_mv.move("left", mvCount + 1);
-          temp_mv.do();
+          let cal = temp_mv.do();
           let newpath = [...path, {           
             move : ["left", mvCount + 1],
             rotate : index
           }]
           if(step == 1){
             ret.push({
-              score : this.evaluate(temp_mv), 
-              tetris : temp_mv,
+              score : this.evaluate(temp_mv, cal), 
+              // tetris : temp_mv,
               path : newpath
             });
           }else{
-            const r = this.thinkOneStep(temp_mv, pathnewpath, step - 1);
-            ret.concat(r);
+            temp_mv.initBrick();
+            const r = this.thinkOneStep(temp_mv, newpath, step - 1);
+            ret = ret.concat(r);
           }
         }
 
@@ -726,20 +757,21 @@ function deepClone(target) {
         for (let mvCount = 0; mvCount < right; mvCount++) {
           const temp_mv = clone(temp_state);
           temp_mv.move("right", mvCount + 1);
-          temp_mv.do();
+          let cal = temp_mv.do();
           let newpath = [...path, {           
             move : ["right", mvCount + 1],
             rotate : index
           }]
           if(step == 1){
             ret.push({
-              score : this.evaluate(temp_mv), 
-              tetris : temp_mv,
+              score : this.evaluate(temp_mv, cal), 
+              // tetris : temp_mv,
               path : newpath
             });
           }else{
-            const r = this.thinkOneStep(temp_mv, pathnewpath, step - 1);
-            ret.concat(r);
+            temp_mv.initBrick();
+            const r = this.thinkOneStep(temp_mv, newpath, step - 1);
+            ret = ret.concat(r);
           }
         }       
       }
@@ -747,8 +779,8 @@ function deepClone(target) {
       return ret;
     }
 
-    think(tetris, stepCount = 1) {
-      let temp = clone(tetris, "temp");
+    think(stepCount = 1) {
+      let temp = clone(this, "temp");
 
       let path = []
       let ret = this.thinkOneStep(temp, path, stepCount);
@@ -756,7 +788,196 @@ function deepClone(target) {
         return y.score-x.score;
       });
 
-      return ret[0].path[0];
+      console.log(ret);
+
+      let action = ret[0].path[0];
+
+      if(action.rotate > 0){
+        for (let i = 0; i < action.rotate; i++) {
+          this.rotate();
+        }
+      }
+
+      if(action.move[0] != 'idle'){
+        this.move(action.move[0], action.move[1]);
+      }
+    }
+
+    landingHeight() {
+      let grids = this.grids;
+      for (let row = 0; row < this.gridConfig.row; row++) {
+        for (let col = 0; col < this.gridConfig.col; col++) {
+          if(grids[row][col]){
+            return this.gridConfig.row - row;
+          }         
+        }
+      }
+      return 0;
+    }
+
+    brickHeight(brickInfo) {
+      let y = [];
+      brickInfo.pos.forEach((coord, index)=>{
+        y.push(coord[1]);
+      })
+
+      let set = new Set(y);
+      return set.length;
+    }
+
+    rowTransitions() {
+      let grids = this.grids;
+      let rownum = this.gridConfig.row;
+      let colnum = this.gridConfig.col;
+
+      let totalTransNum = 0;
+      for ( let i = 0; i < rownum; i++ ) {
+          let nowTransNum = 0;
+          let prevColor = 'border';
+          for ( let j = 0; j < colnum; j++ ) {
+              if ( grids[i][j] != prevColor ) {
+                  nowTransNum++;
+                  prevColor = grids[i][j];
+              }
+          }
+          if ( prevColor === '' ) {
+              nowTransNum++;
+          }
+          totalTransNum += nowTransNum;
+      }
+
+      return totalTransNum;
+    }
+
+    colTransitions() {
+      let grids = this.grids;
+      let rownum = this.gridConfig.row;
+      let colnum = this.gridConfig.col;
+
+      let totalTransNum = 0;
+      for ( let i = 0; i < colnum; i++ ) {
+          let nowTransNum = 0;
+          let prevColor = 'border';
+          for ( let j = 0; j < rownum; j++ ) {
+              if ( grids[j][i] != prevColor ) {
+                  nowTransNum++;
+                  prevColor = grids[j][i];
+              }
+          }
+          if ( prevColor === '' ) {
+              nowTransNum++;
+          }
+          totalTransNum += nowTransNum;
+      }
+
+      return totalTransNum;
+    }
+
+    emptyHoles() {
+      let grids = this.grids;
+      let rownum = this.gridConfig.row;
+      let colnum = this.gridConfig.col;
+
+      let totalEmptyHoles = 0;
+      for ( let i = 0; i < colnum; i++ ) {
+          let j = 0;
+          let emptyHoles = 0;
+          for ( ; j < rownum; j++ ) {
+              if ( grids[j][i] != '' ) {
+                  j++;
+                  break;
+              }
+          }
+          for ( ; j < rownum; j++ ) {
+              if ( grids[j][i] === '' ) {
+                  emptyHoles++;
+              }
+          }
+          totalEmptyHoles += emptyHoles;
+      }
+      return totalEmptyHoles;
+    }
+
+    wellNums() {
+      let grids = this.grids;
+      let rownum = this.gridConfig.row;
+      let colnum = this.gridConfig.col;
+
+      let i = 0, j = 0, wellDepth = 0, tDepth = 0;
+
+      let totalWellDepth = 0;
+      // *) 获取最左边的井数
+      wellDepth = 0;
+      tDepth = 0;
+      for ( j = 0; j < rownum; j++ ) {
+          if ( grids[j][0] === '' && grids[j][1] != '' ) {
+              tDepth++;
+          } else {
+              wellDepth += tDepth * (tDepth + 1) / 2;
+              tDepth = 0;
+          }
+      }
+      wellDepth += tDepth * (tDepth + 1) / 2;
+      totalWellDepth += wellDepth;
+
+      // *) 获取中间的井数
+      wellDepth = 0;
+      for ( i = 1; i < colnum - 1; i++ ) {
+          tDepth = 0;
+          for ( j = 0; j < rownum; j++ ) {
+              if ( grids[j][i] === '' && grids[j][i - 1] != '' && grids[j][i + 1] != '' ) {
+                  tDepth++;
+              } else {
+                  wellDepth += tDepth * (tDepth + 1) / 2;
+                  tDepth = 0;
+              }
+          }
+          wellDepth += tDepth * (tDepth + 1) / 2;
+      }
+      totalWellDepth += wellDepth;
+
+      // *) 获取最右边的井数
+      wellDepth = 0;
+      tDepth = 0;
+      for ( j = 0; j < rownum; j++ ) {
+          if ( grids[j][colnum - 1] === '' && grids[j][colnum - 2] != '' ) {
+              tDepth++;
+          } else {
+              wellDepth += tDepth * (tDepth + 1) / 2;
+              tDepth = 0;
+          }
+      }
+      wellDepth += tDepth * (tDepth + 1) / 2;
+      totalWellDepth += wellDepth;
+
+      return totalWellDepth;
+
+    }
+
+    columnHeight(colnum){
+      let grids = this.grids;
+      let rownum = this.gridConfig.row;
+      var r = 0;
+      for(; r < rownum && grids[r][colnum] === ''; r++);
+      return rownum - r;
+    };
+
+    aggregateHeight() {
+      let colnum = this.gridConfig.col;
+      var total = 0;
+      for(var c = 0; c < colnum; c++){
+          total += this.columnHeight(c);
+      }
+      return total;
+    }
+
+    bumpiness(){
+      let colnum = this.gridConfig.col;
+      var total = 0;
+      for(var c = 0; c < colnum- 1; c++){
+          total += Math.abs(this.columnHeight(c) - this.columnHeight(c+ 1));
+      }
+      return total;
     }
 
     //  AI end
