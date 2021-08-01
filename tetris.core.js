@@ -1,3 +1,6 @@
+
+const ScoreMin = -999999999
+
 function clone(tetris, cloneName = "default") {
   let temp = new Tetris({});
   temp.clone(tetris);
@@ -655,48 +658,81 @@ function deepClone(target) {
       return bricks
     }
 
-    do(){
-      const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
-      this.move('down', bottom);
-      const { topTouched, isRoundLimited, cal } = this.update();
-     
-      // 触顶或者超过游戏的最大方块数量后，结束游戏
-      if (topTouched || isRoundLimited) {
-        const { maxBrickCount, brickCount } = this;
-        console.log("game over");
-      } 
-      console.log(this.getSnapshot().gridsStr);
-      // console.log(cal);
-
-      return cal
-    }
-
     evaluate(tetris, cal) {
       
       let ret = 0;
-      // let landingHeight = tetris.landingHeight();         // 下落高度
+      let landingHeight = tetris.landingHeight();         // 下落高度
       let rowsEliminated = cal.fullLine;                  // 消行个数
-      // let rowTransitions = tetris.rowTransitions();       // 行变换
-      // let colTransitions = tetris.colTransitions();       // 列变化
-      let emptyHoles = tetris.emptyHoles();               // 空洞个数
-      // let wellNums = tetris.wellNums();                   // 井
+      let rowTransitions = tetris.rowTransitions();       // 行变换
+      let colTransitions = tetris.colTransitions();       // 列变化
+      let [emptyHoles, holesDepth] = tetris.emptyHoles();               // 空洞个数
+      let wellNums = tetris.wellNums();                   // 井
 
       let aggregateHeight = tetris.aggregateHeight();
       let bumpiness = tetris.bumpiness();
 
-      ret = -this.heightWeight * aggregateHeight; 
-              + this.linesWeight * rowsEliminated;
-              - this.holesWeight * emptyHoles; 
-              - this.bumpinessWeight * bumpiness;
+      // switch(cal.fullLine){
+      //   case 1:
+      //     rowsEliminated = rowsEliminated
+      //     break
+      //   case 2:
+      //     rowsEliminated = rowsEliminated * 3
+      //     break
+      //   case 3:
+      //     rowsEliminated = rowsEliminated * 6
+      //     break
+      //   case 4:
+      //     rowsEliminated = rowsEliminated * 10
+      //     break
+      // }
+
+      // const weight = {
+      //   heightWeight: 0.510066,
+      //   linesWeight: 0.760666,
+      //   holesWeight: 0.35663,
+      //   bumpinessWeight: 0.284483
+      // }
+      // ret = -weight.heightWeight * aggregateHeight; 
+      //       + weight.linesWeight * rowsEliminated;
+      //       - weight.holesWeight * emptyHoles; 
+      //       - weight.bumpinessWeight * bumpiness;
 
       // ret = (-4.500158825082766) * landingHeight            
       //       + (3.4181268101392694) * rowsEliminated         
       //       + (-3.2178882868487753) * rowTransitions                
       //       + (-9.348695305445199) * colTransitions              
       //       + (-7.899265427351652) * emptyHoles                    
-      //       + (-3.3855972247263626) * wellNums                    
+      //       + (-3.3855972247263626) * wellNums        
+      
+      ret = (-4.500158825082766) * landingHeight            
+        + (3.4181268101392694) * rowsEliminated         
+        + (-3.2178882868487753) * rowTransitions                
+        + (-9.348695305445199) * colTransitions              
+        + (-7.899265427351652) * emptyHoles                    
+        + (-3.3855972247263626) * wellNums  
+
+        + (-0.5) * holesDepth
+
+      console.log(tetris.getSnapshot().gridsStr);
+      console.log('score:' + ret);
 
       return ret;
+    }
+
+    do(){
+      const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
+      this.move('down', bottom);
+      const { topTouched, isRoundLimited, cal } = this.update();
+     
+      // 触顶或者超过游戏的最大方块数量后，结束游戏
+      let invalid = 0
+      if (topTouched || isRoundLimited) {
+        const { maxBrickCount, brickCount } = this;
+        invalid = 1;
+        console.log("game over");
+      } 
+
+      return {cal, invalid};
     }
 
     thinkOneStep(tetris, path, step = 1){
@@ -710,15 +746,15 @@ function deepClone(target) {
 
         //不移动
         const temp_mv = clone(temp_state, "temp_mv_" + index + "_" + "idle");
-        let cal = temp_mv.do();
-        //TODO temp_mv.update()
+        let {cal, invalid} = temp_mv.do();
+
         let newpath = [...path, {           
           move : ["idle", 0],
           rotate : index
         }];
         if(step == 1){
           ret.push({
-            score : this.evaluate(temp_mv, cal), 
+            score : invalid ? ScoreMin : this.evaluate(temp_mv, cal), 
             // tetris : temp_mv,
             path : newpath
           });
@@ -735,14 +771,14 @@ function deepClone(target) {
         for (let mvCount = 0; mvCount < left; mvCount++) {
           const temp_mv = clone(temp_state);
           temp_mv.move("left", mvCount + 1);
-          let cal = temp_mv.do();
+          let {cal, invalid} = temp_mv.do();
           let newpath = [...path, {           
             move : ["left", mvCount + 1],
             rotate : index
           }]
           if(step == 1){
             ret.push({
-              score : this.evaluate(temp_mv, cal), 
+              score : invalid ? ScoreMin : this.evaluate(temp_mv, cal), 
               // tetris : temp_mv,
               path : newpath
             });
@@ -757,14 +793,14 @@ function deepClone(target) {
         for (let mvCount = 0; mvCount < right; mvCount++) {
           const temp_mv = clone(temp_state);
           temp_mv.move("right", mvCount + 1);
-          let cal = temp_mv.do();
+          let {cal, invalid} = temp_mv.do();
           let newpath = [...path, {           
             move : ["right", mvCount + 1],
             rotate : index
           }]
           if(step == 1){
             ret.push({
-              score : this.evaluate(temp_mv, cal), 
+              score : invalid ? ScoreMin : this.evaluate(temp_mv, cal), 
               // tetris : temp_mv,
               path : newpath
             });
@@ -879,6 +915,7 @@ function deepClone(target) {
       let colnum = this.gridConfig.col;
 
       let totalEmptyHoles = 0;
+      let totalHolesDepth = 0;
       for ( let i = 0; i < colnum; i++ ) {
           let j = 0;
           let emptyHoles = 0;
@@ -891,11 +928,20 @@ function deepClone(target) {
           for ( ; j < rownum; j++ ) {
               if ( grids[j][i] === '' ) {
                   emptyHoles++;
+                  for (let index = 0; index < j; index++) {
+                    if(grids[index][i] !== ''){
+                      totalHolesDepth += (j - index);
+                    }                   
+                  }
               }
           }
           totalEmptyHoles += emptyHoles;
       }
-      return totalEmptyHoles;
+      return [totalEmptyHoles, totalHolesDepth];
+    }
+
+    HoleswellDepth() {
+
     }
 
     wellNums() {
@@ -957,15 +1003,15 @@ function deepClone(target) {
     columnHeight(colnum){
       let grids = this.grids;
       let rownum = this.gridConfig.row;
-      var r = 0;
+      let r = 0;
       for(; r < rownum && grids[r][colnum] === ''; r++);
       return rownum - r;
     };
 
     aggregateHeight() {
       let colnum = this.gridConfig.col;
-      var total = 0;
-      for(var c = 0; c < colnum; c++){
+      let total = 0;
+      for(let c = 0; c < colnum; c++){
           total += this.columnHeight(c);
       }
       return total;
@@ -973,8 +1019,8 @@ function deepClone(target) {
 
     bumpiness(){
       let colnum = this.gridConfig.col;
-      var total = 0;
-      for(var c = 0; c < colnum- 1; c++){
+      let total = 0;
+      for(let c = 0; c < colnum- 1; c++){
           total += Math.abs(this.columnHeight(c) - this.columnHeight(c+ 1));
       }
       return total;

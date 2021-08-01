@@ -21,7 +21,7 @@
 ((global) => {
   const defaultPlayFreq = 10;
   const defaultReplayFreq = 10;
-  const thinkDeepth = 1;
+  const thinkDeepth = 2;
 
   class Game {
     dpr = window.devicePixelRatio || 1; // 设备 dpr，保证在高分屏设备下高清绘制 canvas
