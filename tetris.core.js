@@ -330,6 +330,7 @@ export default class Tetris {
     score = 0; // 当前得分
     status = 'stopped'; // 当前游戏状态，stopped： 结束, running：运行中, paused：暂停, starting：初始中
     opRecord = []; // 游戏的操作记录，包含位移、旋转、新建方块等记录信息
+    isMute = false;
 
     /**
      * @description: 核心计算实例的构造函数
@@ -341,26 +342,78 @@ export default class Tetris {
         this.init(opts);
     }
 
-    clone(tetris) {
-            this.shapeIndex = deepClone(tetris.shapeIndex);
-            this.stateIndex = deepClone(tetris.stateIndex);
-            this.grids = deepClone(tetris.grids);
-            this.brickCount = deepClone(tetris.brickCount);
-            this.curRandomNum = deepClone(tetris.curRandomNum);
-            this.maxBrickCount = deepClone(tetris.maxBrickCount);
-            this.curBrickCenterPos = deepClone(tetris.curBrickCenterPos);
-            this.curBrickRawInfo = deepClone(tetris.curBrickRawInfo);
-            this.curBrickInfo = deepClone(tetris.curBrickInfo);
-            this.nextBrickRawInfo = deepClone(tetris.nextBrickRawInfo);
-            this.score = deepClone(tetris.score);
-            this.status = deepClone(tetris.status);
+    clone(tetris, isMute = false) {
+        this.shapeIndex = tetris.shapeIndex;
+        this.stateIndex = tetris.stateIndex;
+        this.grids = deepClone(tetris.grids);
+        this.brickCount = tetris.brickCount;
+        this.curRandomNum = tetris.curRandomNum;
+        this.maxBrickCount = tetris.maxBrickCount;
+        this.curBrickCenterPos = deepClone(tetris.curBrickCenterPos);
+        this.curBrickRawInfo = deepClone(tetris.curBrickRawInfo);
+        this.curBrickInfo = deepClone(tetris.curBrickInfo);
+        this.nextBrickRawInfo = deepClone(tetris.nextBrickRawInfo);
+        this.score = tetris.score;
+        this.status = tetris.status;
+        if (!isMute)
             this.opRecord = deepClone(tetris.opRecord);
+    }
+
+    fromTemp(temp){
+        this.shapeIndex = temp.shapeIndex;
+        this.stateIndex = temp.stateIndex;
+        this.grids = deepClone(temp.grids);
+        this.brickCount = temp.brickCount;
+        this.curRandomNum = temp.curRandomNum;
+        this.maxBrickCount = temp.maxBrickCount;
+        this.curBrickCenterPos = deepClone(temp.curBrickCenterPos);
+        this.curBrickRawInfo = deepClone(temp.curBrickRawInfo);
+        this.curBrickInfo = deepClone(temp.curBrickInfo);
+        this.nextBrickRawInfo = deepClone(temp.nextBrickRawInfo);
+        this.score = tetris.score;
+        this.status = tetris.status;
+    }
+
+    getTemp(){
+        return {
+            shapeIndex : tetris.shapeIndex,
+            stateIndex : tetris.stateIndex,
+            grids : deepClone(tetris.grids),
+            brickCount : tetris.brickCount,
+            curRandomNum : tetris.curRandomNum,
+            maxBrickCount : tetris.maxBrickCount,
+            curBrickCenterPos : deepClone(tetris.curBrickCenterPos),
+            curBrickRawInfo : deepClone(tetris.curBrickRawInfo),
+            curBrickInfo : deepClone(tetris.curBrickInfo),
+            nextBrickRawInfo : deepClone(tetris.nextBrickRawInfo),
+            score : tetris.score,
+            status : tetris.status,
         }
-        /**
-         * @description: 实例化初始函数
-         * @param {object} opts 配置选项
-         * @return {*}
-         */
+    }
+
+    setCurBrickFromTemp(brickTemp){
+        this.curBrickCenterPos = deepClone(brickTemp.curBrickCenterPos);
+        this.curBrickRawInfo = deepClone(brickTemp.curBrickRawInfo);
+        this.curBrickInfo = deepClone(brickTemp.curBrickInfo); 
+        this.stateIndex = brickTemp.stateIndex;
+        this.shapeIndex = brickTemp.shapeIndex;
+    }
+
+    getCurBrickTemp() {
+        return {
+            curBrickCenterPos:deepClone(this.curBrickCenterPos),
+            curBrickRawInfo:deepClone(this.curBrickRawInfo) ,
+            curBrickInfo:deepClone(this.curBrickInfo) ,
+            stateIndex:this.stateIndex ,
+            shapeIndex:this.shapeIndex ,
+        }
+    }
+
+    /**
+     * @description: 实例化初始函数
+     * @param {object} opts 配置选项
+     * @return {*}
+     */
     init(opts = {}) {
         Object.keys(config).forEach((key) => {
             this[key] = Object.assign(config[key], opts[key]);
@@ -513,6 +566,19 @@ export default class Tetris {
         };
     }
 
+    getBrickErodeCells(brickInfo, erodeIndex){
+        const pos = brickInfo.pos;
+        let sum = 0;
+        erodeIndex.forEach((i)=>{
+            pos.forEach((x, y) =>{
+                if(y = i){
+                    sum++;
+                }
+            })
+        })
+        return erodeIndex.length * sum;
+    }
+
     /**
      * @description: 当一个方块落定，更新格子（是否有消除行）、分数，并返回是否堆叠触顶或者超出允许的最大方块数量
      * @param {*}
@@ -555,10 +621,12 @@ export default class Tetris {
         const ret = {
             topTouched: occupiedRowCount === this.gridConfig.row,
             isRoundLimited: this.brickCount >= this.maxBrickCount,
+            invalid: 0,
         };
 
         // 触顶或者超过游戏的最大方块数量时，不计分数
         if (ret.topTouched || ret.isRoundLimited) {
+            ret.invalid = 1;
             return ret;
         }
 
@@ -586,18 +654,119 @@ export default class Tetris {
         fullRowIndexes.forEach((index) => {
             this.grids.splice(index, 1);
             this.grids.unshift(new Array(this.gridConfig.col).fill(''));
+
         });
+
+        const erodeCells = this.getBrickErodeCells(this.curBrickInfo, fullRowIndexes);
 
         this.score += score;
         this.opts.onScoreChange &&
             this.opts.onScoreChange({ status: this.status, score: this.score });
 
-        ret.cal = {
+        ret.stepInfo = {
             score: score,
             occupiedGridCount: occupiedGridCount,
-            fullLine: fullRowIndexes.length
+            fullLine: fullRowIndexes.length,
+            erodeCells: erodeCells
         }
 
+        return ret;
+    }
+
+    tryDropAndUpdate() {
+        const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
+
+        this.move('down', bottom);
+
+        const { pos, color } = this.curBrickInfo;
+
+        pos.forEach(([x, y]) => {
+            this.grids[y] && (this.grids[y][x] = color);
+        });
+
+        const fullRowIndexes = [];
+        let occupiedRowCount = 0;
+        let occupiedGridCount = 0;
+
+        this.grids.forEach((row, rowIndex) => {
+            let occupiedGrirdCountPerRow = 0;
+
+            // 每行已占用的格子计数
+            row.forEach((grid) => {
+                if (grid) {
+                    occupiedGrirdCountPerRow += 1;
+                }
+            });
+
+            // 当前行有被占用的格子，被占用行计数加1
+            if (occupiedGrirdCountPerRow > 0) {
+                occupiedRowCount += 1;
+            }
+
+            // 当前行所有格子都被占用，满行计数加1
+            if (occupiedGrirdCountPerRow === row.length) {
+                fullRowIndexes.push(rowIndex);
+            }
+
+            occupiedGridCount += occupiedGrirdCountPerRow;
+        });
+
+        let ret = {
+            topTouched: occupiedRowCount === this.gridConfig.row,
+            isRoundLimited: this.brickCount >= this.maxBrickCount,
+            invalid: 0,
+            occupiedGridCount = 0,
+            fullLine = 0,
+            erodeCells = 0,
+        };
+
+        // 触顶或者超过游戏的最大方块数量时，不计分数
+        if (ret.topTouched || ret.isRoundLimited) {
+            ret.invalid = 1;
+            return ret;
+        }
+
+        let score = 0;
+        // 分数计算规则（富贵险中求）：界面上堆砌的格子数乘以当前消除行数的得分系数
+        // 当前消除行的得分系数：消除的行数越多，系数随之增加
+        // 如：当前I型方块消除的行数为 18,17,15 共 3 行，则得分为 occupiedGridCount * 6
+        switch (fullRowIndexes.length) {
+            case 1:
+                score += occupiedGridCount * 1;
+                break;
+            case 2:
+                score += occupiedGridCount * 3;
+                break;
+            case 3:
+                score += occupiedGridCount * 6;
+                break;
+            case 4:
+                score += occupiedGridCount * 10;
+                break;
+            case 0:
+            default:
+                score += 0;
+        }
+
+        const erodeCells = this.getBrickErodeCells(this.curBrickInfo, fullRowIndexes);
+
+        ret.score = score;
+        ret.occupiedGridCount = occupiedGridCount;
+        ret.fullLine = fullRowIndexes.length;
+        ret.erodeCells = erodeCells;
+
+        const evaluateInfo = this.getEvaluateInfo(this, ret.fullLine, ret.erodeCells);
+
+        ret.evaluateInfo = evaluateInfo;
+
+        // rollback start -----------------
+        pos.forEach(([x, y]) => {
+            this.grids[y] && (this.grids[y][x] = '');
+        });
+
+        this.move('down', -bottom);
+        // rollback end -----------------
+  
         return ret;
     }
 
@@ -740,8 +909,6 @@ export default class Tetris {
             this.curBrickInfo = brickInfo;
             this.trackOp('rotate');
         }
-
-        // console.log(this.getSnapshot().brickStr);
     }
 
     /**
@@ -762,7 +929,7 @@ export default class Tetris {
      * @return {*}
      */
     trackOp(type, stepCount = 1) {
-        if (this.status !== 'running') return;
+        if (this.status !== 'running' || this.isMute) return;
         type = this.actionMap[type];
 
         const prevOp = this.opRecord.pop();
@@ -897,11 +1064,11 @@ export default class Tetris {
         return bricks
     }
 
-    evaluate(tetris, cal) {
+    evaluate(tetris, stepInfo) {
 
         let ret = 0;
         let landingHeight = tetris.landingMaxHeight(); // 下落高度
-        let rowsEliminated = cal.fullLine; // 消行个数
+        let rowsEliminated = stepInfo.fullLine; // 消行个数
         let rowTransitions = tetris.rowTransitions(); // 行变换
         let colTransitions = tetris.colTransitions(); // 列变化
         let [emptyHoles, holesDepth] = tetris.emptyHoles(); // 空洞个数
@@ -909,32 +1076,6 @@ export default class Tetris {
 
         let aggregateHeight = tetris.aggregateHeight();
         let bumpiness = tetris.bumpiness();
-
-        // switch(cal.fullLine){
-        //   case 1:
-        //     rowsEliminated = rowsEliminated
-        //     break
-        //   case 2:
-        //     rowsEliminated = rowsEliminated * 3
-        //     break
-        //   case 3:
-        //     rowsEliminated = rowsEliminated * 6
-        //     break
-        //   case 4:
-        //     rowsEliminated = rowsEliminated * 10
-        //     break
-        // }
-
-        // const weight = {
-        //   heightWeight: 0.510066,
-        //   linesWeight: 0.760666,
-        //   holesWeight: 0.35663,
-        //   bumpinessWeight: 0.284483
-        // }
-        // ret = -weight.heightWeight * aggregateHeight; 
-        //       + weight.linesWeight * rowsEliminated;
-        //       - weight.holesWeight * emptyHoles; 
-        //       - weight.bumpinessWeight * bumpiness;
 
         // ret = (-4.500158825082766) * landingHeight            
         //       + (3.4181268101392694) * rowsEliminated         
@@ -958,20 +1099,90 @@ export default class Tetris {
         return ret;
     }
 
+    evaluateDQN(tetris, stepInfo){
+
+        return 0;
+    }
+
+
+    getEvaluateInfo(tetris, rowsEliminated, erodeCells) {
+        const landingHeight = tetris.landingHeight(); // 下落高度
+        const rowTransitions = tetris.rowTransitions(); // 行变换
+        const colTransitions = tetris.colTransitions(); // 列变化
+        const [emptyHoles, holesDepth] = tetris.emptyHoles(); // 空洞个数
+        const wellNums = tetris.wellNums(); // 井
+
+        const aggregateHeight = tetris.aggregateHeight();
+        const bumpiness = tetris.bumpiness();
+
+        retrun [
+            rowsEliminated,
+            bumpiness,
+            emptyHoles,
+            landingHeight,
+            rowTransitions,
+            colTransitions,
+            wellNums,
+            erodeCells,
+            aggregateHeight
+        ]
+    }
+
+    thinkDQNStep(tetris) {
+        let evaluateResult = [];
+  
+        let curTetris = clone(tetris);
+        //旋转3次，4种姿态
+        for (let index = 0; index < 4; index++) {
+            if (index > 0) {
+                curTetris.rotate();
+            }
+
+            let { left, right } = curTetris.getBrickGaps(curTetris.gridConfig, curTetris.curBrickInfo, curTetris.grids);
+            curTetris.move("left", left);
+
+            for (let mvCount = 0; mvCount < left + right; mvCount++){
+                if(index > 0)
+                    curTetris.move("right", mvCount);
+
+                let stepInfo = curTetris.tryDropAndUpdate();
+
+                let path = {
+                    move: ["right", mvCount - left],
+                    rotate: index
+                }
+
+                if (!stepInfo.invalid) {
+                    evaluateResult.push({
+                        score: this.evaluateDQN(curTetris, stepInfo),
+                        path: path
+                    });
+                }        
+            }             
+        }
+
+        evaluateResult.sort((x, y) => {
+            return y.score - x.score;
+        });
+
+        return  evaluateResult.length > 0 ? evaluateResult[0] : {
+                score:ScoreMin,
+                path:{
+                    move: ["idle", 0],
+                    rotate: 0
+                }
+            };      
+    }
+
+    thinkDQN(){
+        
+    }
+
     do() {
         const { bottom } = this.getBrickGaps(this.gridConfig, this.curBrickInfo, this.grids);
         this.move('down', bottom);
-        const { topTouched, isRoundLimited, cal } = this.update();
-
-        // 触顶或者超过游戏的最大方块数量后，结束游戏
-        let invalid = 0
-        if (topTouched || isRoundLimited) {
-            const { maxBrickCount, brickCount } = this;
-            invalid = 1;
-            console.log("game over");
-        }
-
-        return { cal, invalid };
+        const { invalid, stepInfo } = this.update();
+        return { stepInfo, invalid};
     }
 
     thinkOneStep(tetris, path, step = 1) {
@@ -985,7 +1196,7 @@ export default class Tetris {
 
             //不移动
             const temp_mv = clone(temp_state, "temp_mv_" + index + "_" + "idle");
-            let { cal, invalid } = temp_mv.do();
+            let { stepInfo, invalid } = temp_mv.do();
 
             let newpath = [...path, {
                 move: ["idle", 0],
@@ -993,7 +1204,7 @@ export default class Tetris {
             }];
             if (step == 1) {
                 ret.push({
-                    score: invalid ? ScoreMin : this.evaluate(temp_mv, cal),
+                    score: invalid ? ScoreMin : this.evaluate(temp_mv, stepInfo),
                     // tetris : temp_mv,
                     path: newpath
                 });
@@ -1010,14 +1221,14 @@ export default class Tetris {
             for (let mvCount = 0; mvCount < left; mvCount++) {
                 const temp_mv = clone(temp_state);
                 temp_mv.move("left", mvCount + 1);
-                let { cal, invalid } = temp_mv.do();
+                let { stepInfo, invalid } = temp_mv.do();
                 let newpath = [...path, {
                     move: ["left", mvCount + 1],
                     rotate: index
                 }]
                 if (step == 1) {
                     ret.push({
-                        score: invalid ? ScoreMin : this.evaluate(temp_mv, cal),
+                        score: invalid ? ScoreMin : this.evaluate(temp_mv, stepInfo),
                         // tetris : temp_mv,
                         path: newpath
                     });
@@ -1032,14 +1243,14 @@ export default class Tetris {
             for (let mvCount = 0; mvCount < right; mvCount++) {
                 const temp_mv = clone(temp_state);
                 temp_mv.move("right", mvCount + 1);
-                let { cal, invalid } = temp_mv.do();
+                let { stepInfo, invalid } = temp_mv.do();
                 let newpath = [...path, {
                     move: ["right", mvCount + 1],
                     rotate: index
                 }]
                 if (step == 1) {
                     ret.push({
-                        score: invalid ? ScoreMin : this.evaluate(temp_mv, cal),
+                        score: invalid ? ScoreMin : this.evaluate(temp_mv, stepInfo),
                         // tetris : temp_mv,
                         path: newpath
                     });

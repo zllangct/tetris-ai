@@ -21,6 +21,7 @@
 const defaultPlayFreq = 10;
 const defaultReplayFreq = 10;
 const thinkDeepth = 2;
+const useDQN = true;
 
 export default class Game {
     playFreq = defaultPlayFreq; // 游戏中每帧绘制的频率，会随着方块数增加而加快
@@ -66,7 +67,11 @@ export default class Game {
         this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
         this.tetris.initGrids(); // 初始格子
         this.tetris.initBrick(); // 初始方块
-        this.tetris.think(thinkDeepth); //ai
+        if(useDQN){
+            this.tetris.thinkDQN();
+        }else{
+            this.tetris.think(thinkDeepth); //ai
+        }
         await this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
     }
 

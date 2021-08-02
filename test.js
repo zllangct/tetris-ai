@@ -1,9 +1,9 @@
-
+import * as tf from '@tensorflow/tfjs'
 
 (async ()=>{
     
-    const model = await tf.loadLayersModel('./weightjs/model.json');
+    const model = await tf.loadLayersModel('http://127.0.0.1:8080/model/model.json');
     
-    print("s")
+    console.log("s");
     
 })()
