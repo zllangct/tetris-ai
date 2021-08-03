@@ -742,7 +742,6 @@ export default class Tetris {
             this.trackOp('rotate');
         }
 
-        // console.log(this.getSnapshot().brickStr);
     }
 
     indexRotate(shapeIndex, stateIndex, curBrickCenterPos) {
@@ -887,6 +886,18 @@ export default class Tetris {
             (-3.3855972247263626) * wellNums
     }
 
+    updateContainer(container) {
+        let col = this.gridConfig.col;
+        let filled = (1 << col) - 1;
+        for (let i = 0; i < container.length; i++) {
+            if (container[i] === filled) {
+                container.splice(i, 1);
+                container.unshift(0);
+            }
+        }
+        return container;
+    }
+
     rowEliminatedNums(container) {
         let col = this.gridConfig.col;
         let filled = (1 << col) - 1;
@@ -902,8 +913,8 @@ export default class Tetris {
         let col = this.gridConfig.col;
         let ret = 0;
         for (let i = 0; i < row; i++) {
-            let lastBit = 1;
-            for (let j = 0; j < col; j++) {
+            let lastBit = container[i] & 1;
+            for (let j = 1; j < col; j++) {
                 let curBit = (container[i] >> j) & 1;
                 if (lastBit !== curBit) ret++;
                 lastBit = curBit;
@@ -917,8 +928,8 @@ export default class Tetris {
         let col = this.gridConfig.col;
         let ret = 0;
         for (let i = 0; i < col; i++) {
-            let lastBit = 1;
-            for (let j = 0; j < row; j++) {
+            let lastBit = container[0] & 1;
+            for (let j = 1; j < row; j++) {
                 let curBit = (container[j] >> i) & 1;
                 if (curBit !== lastBit) ret++;
                 lastBit = curBit;
@@ -935,7 +946,7 @@ export default class Tetris {
         let prevRow = 0;
         for (let i = 0; i < row; i++) {
             rowHoles = ~container[i] & (prevRow | rowHoles);
-            for (let j = 0; j < col; i++) {
+            for (let j = 0; j < col; j++) {
                 holes += ((rowHoles >> j) & 1);
             }
             prevRow = container[i];
@@ -1029,5 +1040,159 @@ export default class Tetris {
             }
         }
         return true;
+    }
+
+    isFilled(container, col, row) {
+        return (container[row] >> col) & 1;
+    }
+    getBrickGapsInfo(container, pos) {
+        const ret = {
+            top: this.gridConfig.row,
+            right: this.gridConfig.col,
+            bottom: this.gridConfig.row,
+            left: this.gridConfig.col,
+        };
+
+        pos.forEach(([x, y]) => {
+            const curGaps = {
+                top: 0,
+                right: 0,
+                bottom: 0,
+                left: 0,
+            };
+
+            // 左侧间隙计算
+            for (let i = x - 1; i >= 0; i--) {
+                if (this.isFilled(container, i, y)) break;
+                curGaps.left += 1;
+            }
+
+            // 右侧间隙计算
+            for (let i = x + 1; i < this.gridConfig.col; i++) {
+                if (this.isFilled(container, i, y)) break;
+                curGaps.right += 1;
+            }
+
+            // 顶部间隙计算
+            for (let i = y - 1; i >= 0; i--) {
+                if (this.isFilled(container, x, i)) break;
+                curGaps.top += 1;
+            }
+
+            // 底部间隙计算
+            for (let i = y + 1; i < this.gridConfig.row; i++) {
+                if (this.isFilled(container, x, i)) break;
+                curGaps.bottom += 1;
+            }
+
+            ['top', 'right', 'bottom', 'left'].forEach((dir) => {
+                if (curGaps[dir] < ret[dir]) {
+                    ret[dir] = curGaps[dir];
+                }
+            });
+        });
+
+        return ret;
+    }
+
+    getMergeContainer(container, pos) {
+        let ret = [...container];
+        pos.forEach(([col, row]) => {
+            ret[row] ^= (1 << col);
+        })
+        return ret;
+    }
+
+    // 最后停留的位置是否合法
+    finalBrickPosValid(container, pos) {
+        const { row, col } = this.gridConfig;
+        const xRange = [0, col - 1];
+        const yRange = [0, row - 1];
+        let validCount = 0;
+
+        pos.forEach(([x, y]) => {
+            const isHorizontalValid = x >= xRange[0] && x <= xRange[1]; // 水平方向是否合法
+            const isVerticalValid = y >= yRange[0] && y <= yRange[1]; // 垂直方向是否合法
+            const isCurGridValid = !this.isFilled(container, x, y);
+            validCount += isHorizontalValid && isVerticalValid && isCurGridValid ? 1 : 0;
+        });
+
+        return validCount === 4;
+    }
+
+    // dir 表示方向，0水平，1垂直, 2旋转
+    pushActionList(oriActionList, moveList) {
+        let ret = [...oriActionList];
+        let actionList = [];
+        moveList.forEach(([dir, offset]) => {
+            if (dir === 0) {
+                actionList.push({
+                    type: offset < 0 ? "left":"right",
+                    len: Math.abs(offset),
+                })
+            } else if (dir === 1) {
+                actionList.push({
+                    type: offset < 0 ? "top":"down",
+                    len: Math.abs(offset),
+                })
+            } else if (dir === 2) {
+                actionList.push({
+                    type: "rotate",
+                    len: 0,
+                })
+            }
+        })
+        ret.push(actionList);
+        return ret;
+    }
+
+    findStep(container, score, actionList, curIndex, thinkDep) {
+        if (thinkDep === 0) {
+            return {
+                score: score,
+                actionList: actionList,
+            }
+        }
+        let result = null;
+        let curBrickInfoList = this.brickInfoList[curIndex];
+        let startState = curBrickInfoList[0].stateIndex;
+        curBrickInfoList.forEach((curBrickInfo) => {
+            let curPos = [...curBrickInfo.brickInfo.pos]
+            let centPos = [4, 0];
+            const {left, right, bottom, top} = this.getBrickGapsInfo(container, curPos)
+            let baseMoveList = [];
+            for (let i = 0; i < (curBrickInfo.stateIndex - startState + 4) % 4; i++) {
+                baseMoveList.push([2, 0]);
+            }
+            for (let i = -left; i <= right; i++) {
+                const moveList = [...baseMoveList];
+                const afterCenterPos = [...centPos];
+                const afterMovePos = curPos.map(([x, y]) => {
+                    return [x + i, y];
+                })
+
+                const {bottom} = this.getBrickGapsInfo(container, afterMovePos);
+                const finalPos = afterMovePos.map(([x, y]) => {
+                    return [x, y + bottom];
+                })
+                if (!this.finalBrickPosValid(container, finalPos)) {
+                    continue;
+                }
+                afterCenterPos[0] += i;
+                afterCenterPos[1] += bottom;
+                moveList.push([0, i]);
+                moveList.push([1, bottom]);
+                let tmpActionList = this.pushActionList(actionList, moveList);
+                let mergedContainer = this.getMergeContainer(container, finalPos);
+                let curScore = this.calcScore(mergedContainer, this.gridConfig.row - afterCenterPos[1]);
+                mergedContainer = this.updateContainer(mergedContainer);
+                let tmpResult = this.findStep(mergedContainer, curScore, tmpActionList, curIndex + 1, thinkDep - 1);
+                if (tmpResult === null) continue;
+                if (result === null || tmpResult.score > result.score) {
+                    result = tmpResult;
+                }
+            }
+        })
+        return result;
     }
 }

@@ -90,10 +90,10 @@ export default class Game {
      */
     async startAutoRun(isInit) {
         this.tetris.initBrickInfoList();
-        let end = (new Date()).getMilliseconds();
-        for (let i = 0; i < 2; i++) {
-            await this.processRun(i);
-            if (i % 100 === 0) {
+        for (let i = 0; i < 1000; i++) {
+            let ok = await this.processRun(i);
+            if (!ok) break;
+            if (i % 10 === 0) {
                 console.log(this.tetris.score)
             }
         }
@@ -111,14 +111,23 @@ export default class Game {
             }
             container.push(val);
         }
-        let ret = this.findStep(container, [], index, 1)
-    }
 
-    findStep(container, actionList, curIndex, thinkDep) {
-        if (thinkDep === 0) {
-            return actionList;
+        let result = this.tetris.findStep(container, 0, [], index, 1)
+        let actionList = result.actionList[0];
+        for (let i = 0; i < actionList.length; i++) {
+            const {type, len} = actionList[i];
+            if (type === 'rotate') {
+                this.tetris.rotate();
+            } else {
+                this.tetris.move(type, len)
+            }
         }
-        return [];
+        const { topTouched, isRoundLimited } = this.tetris.update();
+        if (topTouched || isRoundLimited) {
+            console.log("gameOver");
+            return 0;
+        }
+        return 1;
     }
 
     /**
