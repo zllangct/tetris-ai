@@ -18,13 +18,11 @@
  * 注：游戏使用的坐标系为 canvas 坐标系（坐标原点在左上角）详见：https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial/Drawing_shapes
  *
  */
-((global) => {
-  const defaultPlayFreq = 10;
-  const defaultReplayFreq = 10;
-  const thinkDeepth = 2;
+const defaultPlayFreq = 10;
+const defaultReplayFreq = 10;
+const thinkDeepth = 2;
 
-  class Game {
-    dpr = window.devicePixelRatio || 1; // 设备 dpr，保证在高分屏设备下高清绘制 canvas
+export default class Game {
     playFreq = defaultPlayFreq; // 游戏中每帧绘制的频率，会随着方块数增加而加快
     speed = 1; // 游戏速度展示值，会随着方块数增加而加快（取值：1到10）
     speedUpCount = 100; // 触发游戏加速的间隔方块数（每100个方块后加速一次，初始为1000ms，每次递减100ms，最快 100ms）
@@ -41,12 +39,10 @@
      * @param {object} opts 配置选项
      * @return {*}
      */
-    constructor(canvas, opts = {}) {
-      this.opts = opts;
-      this.tetris = new global.Tetris(opts); // 从 Tetris 实例化 tetris 核心计算对象，核心计算全包含在此类中
-      this.canvas = canvas;
-      this.ctx = this.canvas.getContext('2d');
-      this.bindEvents(); // 绑定键盘操作
+    constructor(canvas, tetris, opts) {
+        this.opts = opts;
+        this.tetris = tetris; // 从 Tetris 实例化 tetris 核心计算对象，核心计算全包含在此类中
+        this.bindEvents(); // 绑定键盘操作
     }
 
     /**
@@ -55,23 +51,21 @@
      * @return {*}
      */
     async start() {
-      //test get all bricks ===========
+        //test get all bricks ===========
 
-      // this.tetris.getAllBrick();
+        // this.tetris.getAllBrick();
 
-      //test end ======================
+        //test end ======================
 
-      const { status } = this.tetris;
+        const { status } = this.tetris;
 
-      if (status === 'starting') return; // 游戏已在重启中，等待重启完成，不作处理
-      this.mode = 'play'; // 设置为游戏模式（另有回放模式 replay）
-      await this.reset(); // 重置相关状态和数据，且播放清屏动画
-      // this.play();
-      this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
-      this.tetris.initGrids(); // 初始格子
-      this.tetris.initBrick(); // 初始方块
-      this.tetris.think(thinkDeepth); //ai
-      this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
+        if (status === 'starting') return; // 游戏已在重启中，等待重启完成，不作处理
+        this.mode = 'play'; // 设置为游戏模式（另有回放模式 replay）
+        await this.reset(); // 重置相关状态和数据，且播放清屏动画
+        // this.play();
+        this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
+        this.tetris.initGrids(); // 初始格子
+        await this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
     }
 
     /**
@@ -80,17 +74,13 @@
      * @return {*}
      */
     async reset() {
-      this.record = [];
-      this.speed = 1;
-      this.playFreq = defaultPlayFreq;
-      this.pause(); // 清屏前先暂停当前的状态，以免清屏动画和当前主线动画冲突
-      this.opts.onSpeedChange && this.opts.onSpeedChange({ speed: this.speed });
+        this.record = [];
+        this.speed = 1;
+        this.playFreq = defaultPlayFreq;
+        this.pause(); // 清屏前先暂停当前的状态，以免清屏动画和当前主线动画冲突
+        this.opts.onSpeedChange && this.opts.onSpeedChange({ speed: this.speed });
 
-      // 重置 tetris 实例内的状态，并在回调中清屏动画
-      await this.tetris.reset(async () => {
-        await this.sleep(20);
-        this.render();
-      });
+        await this.tetris.reset(async() => {});
     }
 
     /**
@@ -98,21 +88,37 @@
      * @param {boolean} isInit 是否是初始行为
      * @return {*}
      */
-    startAutoRun(isInit) {
-      const { mode } = this;
-      const timerId = `${mode}Timer`; // 对应的轮询 timer
-      const freqId = `${mode}Freq`; // 对应的运行频率
-      const stepFun = `${mode}Step`; // 单步逻辑函数，playStep 和 replayStep
+    async startAutoRun(isInit) {
+        this.tetris.initBrickInfoList();
+        let end = (new Date()).getMilliseconds();
+        for (let i = 0; i < 2; i++) {
+            await this.processRun(i);
+            if (i % 100 === 0) {
+                console.log(this.tetris.score)
+            }
+        }
+    }
 
-      if (this.tetris.status === 'running') {
-        isInit && this.render(); // 初次开启时先渲染一帧
+    async processRun(index) {
+        this.tetris.initBrick();
+        let container = [];
+        for (let i = 0; i < this.tetris.gridConfig.row; i++) {
+            let val = 0;
+            for (let j = 0; j < this.tetris.gridConfig.col; j++) {
+                if (this.tetris.grids[i][j] !== "") {
+                    val |= (1 << j);
+                }
+            }
+            container.push(val);
+        }
+        let ret = this.findStep(container, [], index, 1)
+    }
 
-        // 按照对应模式的频率循环执行对应单步逻辑
-        this[timerId] = setTimeout(() => {
-          this[stepFun]();
-          this.startAutoRun();
-        }, this[freqId]);
-      }
+    findStep(container, actionList, curIndex, thinkDep) {
+        if (thinkDep === 0) {
+            return actionList;
+        }
+        return [];
     }
 
     /**
@@ -123,41 +129,38 @@
      * @return {*}
      */
     async playStep(dir = 'down', stepCount = 1, needUpdate = true) {
-      // 先执行位移
-      const { bottom } = this.tetris.move(dir, stepCount);
-      let isStepValid = true;
+        // 先执行位移
+        const { bottom } = this.tetris.move(dir, stepCount);
+        let isStepValid = true;
 
-      // 方块位移后触底，判定为方块落定
-      if (needUpdate && bottom === 0) {
-        // 方块落定后，更新状态
-        const { topTouched, isRoundLimited } = this.tetris.update();
+        // 方块位移后触底，判定为方块落定
+        if (needUpdate && bottom === 0) {
+            // 方块落定后，更新状态
+            const { topTouched, isRoundLimited } = this.tetris.update();
 
-        // 触顶或者超过游戏的最大方块数量后，结束游戏
-        if (topTouched || isRoundLimited) {
-          const { maxBrickCount, brickCount } = this.tetris;
+            // 触顶或者超过游戏的最大方块数量后，结束游戏
+            if (topTouched || isRoundLimited) {
+                const { maxBrickCount, brickCount } = this.tetris;
 
-          this.gameOver(
-            `方块是否触顶：${topTouched}（当前为第 ${brickCount} 个方块），方块数是否超过限制：${isRoundLimited}（最大方块数：${maxBrickCount}）`
-          );
-        } else {
-          // 未触顶且未超过游戏的最大方块数量，新建方块，并判断新建的方块是否合法
-          const { isValid, brickCount } = this.tetris.initBrick();
+                this.gameOver(
+                    `方块是否触顶：${topTouched}（当前为第 ${brickCount} 个方块），方块数是否超过限制：${isRoundLimited}（最大方块数：${maxBrickCount}）`
+                );
+            } else {
+                // 未触顶且未超过游戏的最大方块数量，新建方块，并判断新建的方块是否合法
+                const { isValid, brickCount } = this.tetris.initBrick();
 
-          this.tetris.think(thinkDeepth);
+                this.tetris.think(thinkDeepth);
 
-          isStepValid = isValid;
+                isStepValid = isValid;
 
-          // 新方块不合法（无法再摆放）时，结束游戏
-          if (isValid) {
-            this.updateSpeed();
-          } else {
-            this.gameOver(`已无法摆放第 ${brickCount} 个初始方块`);
-          }
+                // 新方块不合法（无法再摆放）时，结束游戏
+                if (isValid) {
+                    this.updateSpeed();
+                } else {
+                    this.gameOver(`已无法摆放第 ${brickCount} 个初始方块`);
+                }
+            }
         }
-      }
-
-      // 单步逻辑执行后合法，绘制最新的状态到 canvas 上
-      this.render(isStepValid);
     }
 
     /**
@@ -166,23 +169,23 @@
      * @return {*}
      */
     async playRecord(record = []) {
-      const { status } = this.tetris;
-      const { isValid, msg } = this.validateRecord(record);
+        const { status } = this.tetris;
+        const { isValid, msg } = this.validateRecord(record);
 
-      if (!isValid) {
-        console.error(
-          `${msg}\n参考格式：指令类型标识 + 多位数字（如：L1, D12, N, C2, R2，其中指令 N 不能带数字）。合法的指令标识符有：L（左移）, R（右移）, D（下降）, C（旋转）, N（新方块）`
-        );
-        return;
-      }
-      if (status === 'starting') return;
-      this.mode = 'replay';
-      await this.reset();
-      this.record = record;
-      // this.replay();
-      this.tetris.setStatus('running');
-      this.tetris.initGrids();
-      this.startAutoRun(true);
+        if (!isValid) {
+            console.error(
+                `${msg}\n参考格式：指令类型标识 + 多位数字（如：L1, D12, N, C2, R2，其中指令 N 不能带数字）。合法的指令标识符有：L（左移）, R（右移）, D（下降）, C（旋转）, N（新方块）`
+            );
+            return;
+        }
+        if (status === 'starting') return;
+        this.mode = 'replay';
+        await this.reset();
+        this.record = record;
+        // this.replay();
+        this.tetris.setStatus('running');
+        this.tetris.initGrids();
+        this.startAutoRun(true);
     }
 
     /**
@@ -191,65 +194,63 @@
      * @return {*}
      */
     async replayStep() {
-      const { record } = this;
+        const { record } = this;
 
-      if (record.length) {
-        const curOp = record.shift(); // 当前动作类型对应的操作记录
-        const [nextOp] = record; // 下一个动作类型对应的操作记录
-        const opRecord = this.tetris.getOpInfo(curOp); // 包含动作类型 type 和该动作的重复次数 count，如：D2 --> { type: 'down', count: 2}
-        const { type: nextType } = this.tetris.getOpInfo(nextOp);
-        const curAction = this.tetris.actionMapReversed[opRecord.type];
-        const nextAction = this.tetris.actionMapReversed[nextType];
+        if (record.length) {
+            const curOp = record.shift(); // 当前动作类型对应的操作记录
+            const [nextOp] = record; // 下一个动作类型对应的操作记录
+            const opRecord = this.tetris.getOpInfo(curOp); // 包含动作类型 type 和该动作的重复次数 count，如：D2 --> { type: 'down', count: 2}
+            const { type: nextType } = this.tetris.getOpInfo(nextOp);
+            const curAction = this.tetris.actionMapReversed[opRecord.type];
+            const nextAction = this.tetris.actionMapReversed[nextType];
 
-        if (curAction === 'new') {
-          // 构建新方块时
-          const { isValid, brickCount } = this.tetris.initBrick();
-          this.updateSpeed();
+            if (curAction === 'new') {
+                // 构建新方块时
+                const { isValid, brickCount } = this.tetris.initBrick();
+                this.updateSpeed();
 
-          // 新方块无法再摆放，结束游戏
-          if (!isValid) {
-            this.gameOver(`已无法摆放第 ${brickCount} 个初始方块`);
-            return;
-          }
-        } else if (curAction && opRecord.count) {
-          // 位移动作发生时
-          if (['left', 'right', 'down'].indexOf(curAction) > -1) {
-            this.tetris.move(curAction, 1);
-          } else if (curAction === 'rotate') {
-            // 旋转动作发生时
-            this.tetris.rotate();
-          }
-          opRecord.count -= 1;
+                // 新方块无法再摆放，结束游戏
+                if (!isValid) {
+                    this.gameOver(`已无法摆放第 ${brickCount} 个初始方块`);
+                    return;
+                }
+            } else if (curAction && opRecord.count) {
+                // 位移动作发生时
+                if (['left', 'right', 'down'].indexOf(curAction) > -1) {
+                    this.tetris.move(curAction, 1);
+                } else if (curAction === 'rotate') {
+                    // 旋转动作发生时
+                    this.tetris.rotate();
+                }
+                opRecord.count -= 1;
+            }
+
+            // 当前类型操作的执行次数还未执行完时，将剩余操作重新放入记录队列，待下一轮执行
+            if (opRecord.count > 0) {
+                record.unshift(`${opRecord.type}${opRecord.count}`);
+            }
+
+            // 当前类型操作类型执行完毕且下一类型为新建方块时，更新状态（某个方块落定）
+            if (
+                (opRecord.count === 0 && (nextAction === 'new' || !nextAction)) ||
+                (curAction === 'new' && !record.length)
+            ) {
+                const { topTouched, isRoundLimited } = this.tetris.update();
+
+                // 触顶或者超过游戏的最大方块数量后，结束游戏
+                if (topTouched || isRoundLimited) {
+                    const { maxBrickCount, brickCount } = this.tetris;
+
+                    this.gameOver(
+                        `方块是否触顶：${topTouched}（当前为第 ${brickCount} 个方块），方块数是否超过限制：${isRoundLimited}（最大方块数：${maxBrickCount}）`
+                    );
+                }
+            }
+
+        } else {
+            // 操作记录消耗完毕后，回放完毕
+            this.gameOver('操作记录运算完毕');
         }
-
-        // 当前类型操作的执行次数还未执行完时，将剩余操作重新放入记录队列，待下一轮执行
-        if (opRecord.count > 0) {
-          record.unshift(`${opRecord.type}${opRecord.count}`);
-        }
-
-        // 当前类型操作类型执行完毕且下一类型为新建方块时，更新状态（某个方块落定）
-        if (
-          (opRecord.count === 0 && (nextAction === 'new' || !nextAction)) ||
-          (curAction === 'new' && !record.length)
-        ) {
-          const { topTouched, isRoundLimited } = this.tetris.update();
-
-          // 触顶或者超过游戏的最大方块数量后，结束游戏
-          if (topTouched || isRoundLimited) {
-            const { maxBrickCount, brickCount } = this.tetris;
-
-            this.gameOver(
-              `方块是否触顶：${topTouched}（当前为第 ${brickCount} 个方块），方块数是否超过限制：${isRoundLimited}（最大方块数：${maxBrickCount}）`
-            );
-          }
-        }
-
-        // 执行从动作后将最新状态渲染到 canvas
-        this.render();
-      } else {
-        // 操作记录消耗完毕后，回放完毕
-        this.gameOver('操作记录运算完毕');
-      }
     }
 
     /**
@@ -258,54 +259,54 @@
      * @return {boolean} 该数组是否合法
      */
     validateRecord(record) {
-      const ret = { isValid: true, msg: '' };
-      const opCountArr = [];
-      let countBetweenNN = 0;
+        const ret = { isValid: true, msg: '' };
+        const opCountArr = [];
+        let countBetweenNN = 0;
 
-      for (let i = 0; i < record.length; i++) {
-        const { type, count } = this.tetris.getOpInfo(record[i]);
+        for (let i = 0; i < record.length; i++) {
+            const { type, count } = this.tetris.getOpInfo(record[i]);
 
-        // 第一个动作不为 N 时
-        if (i === 0 && type !== 'N') {
-          ret.isValid = false;
-          ret.msg = '操作序列只能以 N 指令开头';
-          return ret;
-        }
+            // 第一个动作不为 N 时
+            if (i === 0 && type !== 'N') {
+                ret.isValid = false;
+                ret.msg = '操作序列只能以 N 指令开头';
+                return ret;
+            }
 
-        if (type === 'N') {
-          if (i !== 0 && i !== record.length - 1) {
-            opCountArr.push(countBetweenNN);
-            countBetweenNN = 0;
-          }
-          // N 指令带数字时
-          if (count !== undefined) {
-            ret.isValid = false;
-            ret.msg = `N 指令不能带数字（第 ${i + 1} 个指令为 ${type}${count}，请修改）`;
-            return ret;
-          }
-        } else {
-          countBetweenNN += +count;
-          // 指令无法识别 或 非 N 指令不带数字时
-          if (!type || (type && !count)) {
-            ret.isValid = false;
-            ret.msg = `存在无法识别的操作指令 或 操作指令没有带数字（第 ${i + 1} 个指令为 "${
+            if (type === 'N') {
+                if (i !== 0 && i !== record.length - 1) {
+                    opCountArr.push(countBetweenNN);
+                    countBetweenNN = 0;
+                }
+                // N 指令带数字时
+                if (count !== undefined) {
+                    ret.isValid = false;
+                    ret.msg = `N 指令不能带数字（第 ${i + 1} 个指令为 ${type}${count}，请修改）`;
+                    return ret;
+                }
+            } else {
+                countBetweenNN += +count;
+                // 指令无法识别 或 非 N 指令不带数字时
+                if (!type || (type && !count)) {
+                    ret.isValid = false;
+                    ret.msg = `存在无法识别的操作指令 或 操作指令没有带数字（第 ${i + 1} 个指令为 "${
               record[i]
             }"，请修改）`;
-            return ret;
-          }
+                    return ret;
+                }
+            }
         }
-      }
-      opCountArr.push(countBetweenNN);
+        opCountArr.push(countBetweenNN);
 
-      const opCountIndex = opCountArr.findIndex((val) => val === 0 || val > 100);
-      if (opCountIndex > -1) {
-        ret.isValid = false;
-        ret.msg = `两个方块之间的操作次数必须在区间 (0,100] 内（第 ${
+        const opCountIndex = opCountArr.findIndex((val) => val === 0 || val > 100);
+        if (opCountIndex > -1) {
+            ret.isValid = false;
+            ret.msg = `两个方块之间的操作次数必须在区间 (0,100] 内（第 ${
           opCountIndex + 1
         } 个方块的操作次数为：${opCountArr[opCountIndex]}）`;
-      }
+        }
 
-      return ret;
+        return ret;
     }
 
     /**
@@ -314,13 +315,13 @@
      * @return {*}
      */
     updateSpeed() {
-      const { speedUpCount, playFreq } = this;
+        const { speedUpCount, playFreq } = this;
 
-      if (this.tetris.brickCount % speedUpCount === 0 && playFreq > 100) {
-        this.speed += 1;
-        this.playFreq -= 100;
-        this.opts.onSpeedChange && this.opts.onSpeedChange({ speed: this.speed });
-      }
+        if (this.tetris.brickCount % speedUpCount === 0 && playFreq > 100) {
+            this.speed += 1;
+            this.playFreq -= 100;
+            this.opts.onSpeedChange && this.opts.onSpeedChange({ speed: this.speed });
+        }
     }
 
     /**  结束游戏
@@ -329,13 +330,13 @@
      * @return {*}
      */
     gameOver(reason = '') {
-      const { opRecord, score, brickCount } = this.tetris;
-      const { gridsStr, brickStr } = this.tetris.getSnapshot();
+        const { opRecord, score, brickCount } = this.tetris;
+        const { gridsStr, brickStr } = this.tetris.getSnapshot();
 
-      this.stop();
-      this.opts.onEnd && this.opts.onEnd({ score, brickCount, opRecord });
+        this.stop();
+        this.opts.onEnd && this.opts.onEnd({ score, brickCount, opRecord });
 
-      const msg = `【游戏结束信息】
+        const msg = `【游戏结束信息】
 结束原因：${reason}
 当前运行方块数：${brickCount}
 当前得分：${score}
@@ -344,7 +345,7 @@ ${gridsStr}
 最后时刻的砖块位置信息：
 ${brickStr}`;
 
-      console.log(msg);
+        console.log(msg);
     }
 
     /**
@@ -352,36 +353,7 @@ ${brickStr}`;
      * @param {*}
      * @return {*}
      */
-    render(isBrickValid = true) {
-      const vh = this.canvas.clientHeight / 100;
-      const { gridConfig, curBrickInfo, grids, nextBrickRawInfo = {} } = this.tetris; // 从 tetris 计算核心实例总获取：网格配置、当前方块信息（位置和颜色）、当前所有网格的使用情况
-
-      // 清空画布
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-      // 绘制当前方块
-      const { pos = [], color } = curBrickInfo; // 获取当前方块的位置和颜色信息
-      const gridWidth = (this.canvas.width * (3 / 4)) / gridConfig.col; // canvas 配置宽度的 3/4 用来绘制格子区域，1/4 用来绘制下一个方块
-      const gridHeight = this.canvas.height / gridConfig.row;
-      const gridGap = (vh / 8) * this.dpr; // 每个单元格的留白间隙
-      if (isBrickValid) {
-        this.renderBrick(pos, gridWidth, gridHeight, gridGap, color, []);
-      }
-
-      // 绘制下一个方块
-      const { pos: nextRawPos = [], color: nextColor } = nextBrickRawInfo;
-      const nextGridUnit = vh * 2 * this.dpr;
-      const nextOffsetUnit = vh * 4 * this.dpr;
-      const nextMarginLeft = this.canvas.width * (3 / 4) + nextOffsetUnit * 1.8;
-      const nextMarginTop = nextOffsetUnit * 19;
-      this.renderBrick(nextRawPos, nextGridUnit, nextGridUnit, vh / 12, nextColor, [
-        nextMarginLeft,
-        nextMarginTop,
-      ]);
-
-      // 绘制已占用的格子
-      this.renderGrids(grids, gridWidth, gridHeight, gridGap);
-    }
+    render(isBrickValid = true) {}
 
     /**
      * @description: 渲染当前方块
@@ -394,21 +366,7 @@ ${brickStr}`;
      * @param {number} marginTop 方块的上边距
      * @return {*}
      */
-    renderBrick(pos, gridWidth, gridHeight, gridGap, color, [marginLeft = 0, marginTop = 0]) {
-      pos.length &&
-        pos.forEach(([x, y]) => {
-          const startX = x * gridWidth + marginLeft;
-          const startY = y * gridHeight + marginTop;
-
-          this.ctx.fillStyle = color;
-          this.ctx.fillRect(
-            startX + gridGap,
-            startY + gridGap,
-            gridWidth - gridGap * 2,
-            gridHeight - gridGap * 2
-          );
-        });
-    }
+    renderBrick(pos, gridWidth, gridHeight, gridGap, color, [marginLeft = 0, marginTop = 0]) {}
 
     /**
      * @description: 绘制已占用的格子
@@ -418,34 +376,14 @@ ${brickStr}`;
      * @param {number} gridGap 格子之间的间隙
      * @return {*}
      */
-    renderGrids(grids, gridWidth, gridHeight, gridGap) {
-      grids.forEach((row, rowIndex) => {
-        row.forEach((col, colIndex) => {
-          if (col) {
-            const startX = colIndex * gridWidth;
-            const startY = rowIndex * gridHeight;
-
-            this.ctx.fillStyle = col;
-            this.ctx.fillRect(
-              startX + gridGap,
-              startY + gridGap,
-              gridWidth - gridGap * 2,
-              gridHeight - gridGap * 2
-            );
-          }
-        });
-      });
-    }
+    renderGrids(grids, gridWidth, gridHeight, gridGap) {}
 
     /**
      * @description: 绑定键盘事件
      * @param {*}
      * @return {*}
      */
-    bindEvents() {
-      window.addEventListener('keydown', this.onKeyDown.bind(this));
-      window.addEventListener('keyup', this.onKeyUp.bind(this));
-    }
+    bindEvents() {}
 
     /**
      * @description: keydown 事件回调
@@ -453,11 +391,11 @@ ${brickStr}`;
      * @return {*}
      */
     onKeyDown(e) {
-      this.keyDownHandler(e.keyCode);
-      if (this.keydownTimer || [37, 39, 40].indexOf(e.keyCode) === -1) return;
-      this.keydownTimer = setInterval(() => {
         this.keyDownHandler(e.keyCode);
-      }, 150);
+        if (this.keydownTimer || [37, 39, 40].indexOf(e.keyCode) === -1) return;
+        this.keydownTimer = setInterval(() => {
+            this.keyDownHandler(e.keyCode);
+        }, 150);
     }
 
     /**
@@ -466,8 +404,8 @@ ${brickStr}`;
      * @return {*}
      */
     onKeyUp() {
-      clearInterval(this.keydownTimer);
-      this.keydownTimer = null;
+        clearInterval(this.keydownTimer);
+        this.keydownTimer = null;
     }
 
     /**
@@ -476,51 +414,51 @@ ${brickStr}`;
      * @return {*}
      */
     keyDownHandler(keyCode) {
-      const { status } = this.tetris;
+        const { status } = this.tetris;
 
-      switch (keyCode) {
-        // esc 键：重新开始
-        case 27:
-          if (status !== 'stopped') {
-            this.start();
-          }
-          break;
-        // 回车键：暂停/继续
-        case 13:
-          this.toggleAutoRun();
-          break;
-      }
-      if (this.mode === 'play' && status === 'running') {
         switch (keyCode) {
-          // 方向左键：左移动
-          case 37:
-            this.playStep('left', 1, false);
-            break;
-
-          // 方向右键：右移动
-          case 39:
-            this.playStep('right', 1, false);
-            break;
-
-          // 方向下键：下移动
-          case 40:
-            this.playStep('down', 1, false);
-            break;
-
-          // 方向上键：旋转
-          case 38:
-            this.tetris.rotate();
-            this.render();
-            break;
-
-          // 空格键：下坠方块
-          case 32:
-            this.tetris.drop();
-            this.playStep('down', 1);
-            this.opts.onDrop();
-            break;
+            // esc 键：重新开始
+            case 27:
+                if (status !== 'stopped') {
+                    this.start();
+                }
+                break;
+                // 回车键：暂停/继续
+            case 13:
+                this.toggleAutoRun();
+                break;
         }
-      }
+        if (this.mode === 'play' && status === 'running') {
+            switch (keyCode) {
+                // 方向左键：左移动
+                case 37:
+                    this.playStep('left', 1, false);
+                    break;
+
+                    // 方向右键：右移动
+                case 39:
+                    this.playStep('right', 1, false);
+                    break;
+
+                    // 方向下键：下移动
+                case 40:
+                    this.playStep('down', 1, false);
+                    break;
+
+                    // 方向上键：旋转
+                case 38:
+                    this.tetris.rotate();
+                    this.render();
+                    break;
+
+                    // 空格键：下坠方块
+                case 32:
+                    this.tetris.drop();
+                    this.playStep('down', 1);
+                    this.opts.onDrop();
+                    break;
+            }
+        }
     }
 
     /**
@@ -529,11 +467,11 @@ ${brickStr}`;
      * @return {*}
      */
     async sleep(time) {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          resolve();
-        }, time);
-      });
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve();
+            }, time);
+        });
     }
 
     /**
@@ -542,16 +480,16 @@ ${brickStr}`;
      * @return {*}
      */
     pause(isEnd) {
-      const timerId = `${this.mode}Timer`;
+        const timerId = `${this.mode}Timer`;
 
-      if (isEnd) {
-        this.tetris.setStatus('stopped');
-      } else {
-        if (this.tetris.status === 'stopped') return; // 已经结束，就不再置为暂停了
-        this.tetris.setStatus('paused');
-      }
+        if (isEnd) {
+            this.tetris.setStatus('stopped');
+        } else {
+            if (this.tetris.status === 'stopped') return; // 已经结束，就不再置为暂停了
+            this.tetris.setStatus('paused');
+        }
 
-      clearTimeout(this[timerId]);
+        clearTimeout(this[timerId]);
     }
 
     /**
@@ -560,7 +498,7 @@ ${brickStr}`;
      * @return {*}
      */
     stop() {
-      this.pause(true);
+        this.pause(true);
     }
 
     /**
@@ -569,8 +507,8 @@ ${brickStr}`;
      * @return {*}
      */
     resume() {
-      this.tetris.setStatus('running');
-      this.startAutoRun();
+        this.tetris.setStatus('running');
+        this.startAutoRun();
     }
 
     /**
@@ -579,15 +517,12 @@ ${brickStr}`;
      * @return {*}
      */
     toggleAutoRun() {
-      const { status } = this.tetris;
+        const { status } = this.tetris;
 
-      if (status === 'running') {
-        this.pause();
-      } else if (status === 'paused') {
-        this.resume();
-      }
+        if (status === 'running') {
+            this.pause();
+        } else if (status === 'paused') {
+            this.resume();
+        }
     }
-  }
-
-  global.Game = Game;
-})(window);
+}
