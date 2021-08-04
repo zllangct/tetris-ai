@@ -90,18 +90,20 @@ export default class Game {
      */
     async startAutoRun(isInit) {
         this.tetris.initBrickInfoList();
-        for (let i = 0; i < 1000; i++) {
+        for (let i = 0; i < 10000; i++) {
             let ok = await this.processRun(i);
             if (!ok) break;
             // this.tetris.printGrids();
             // console.log("-----------------------------------------------\n")
             if (i % 10 === 0) console.log(this.tetris.score)
         }
+        this.gameOver("sb")
     }
 
     async processRun(index) {
         this.tetris.initBrick();
         let container = [];
+        let maxHeight = 0;
         for (let i = 0; i < this.tetris.gridConfig.row; i++) {
             let val = 0;
             for (let j = 0; j < this.tetris.gridConfig.col; j++) {
@@ -109,10 +111,13 @@ export default class Game {
                     val |= (1 << j);
                 }
             }
+            if (val > 0) {
+                maxHeight = Math.max(maxHeight, this.tetris.gridConfig.row - i);
+            }
             container.push(val);
         }
 
-        let result = this.tetris.findStep(container, 0, [], index, 3)
+        let result = this.tetris.findStep(container, 0, [], index, 1)
         let actionList = result.actionList[0];
         for (let i = 0; i < actionList.length; i++) {
             const {type, len} = actionList[i];

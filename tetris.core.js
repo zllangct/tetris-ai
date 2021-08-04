@@ -925,12 +925,13 @@ export default class Tetris {
         let col = this.gridConfig.col;
         let ret = 0;
         for (let i = 0; i < row; i++) {
-            let lastBit = container[i] & 1;
-            for (let j = 1; j < col; j++) {
+            let lastBit = 1;
+            for (let j = 0; j < col; j++) {
                 let curBit = (container[i] >> j) & 1;
                 if (lastBit !== curBit) ret++;
                 lastBit = curBit;
             }
+            if (lastBit === 0) ret++;
         }
         return ret;
     }
@@ -940,12 +941,13 @@ export default class Tetris {
         let col = this.gridConfig.col;
         let ret = 0;
         for (let i = 0; i < col; i++) {
-            let lastBit = container[0] & 1;
-            for (let j = 1; j < row; j++) {
+            let lastBit = 1;
+            for (let j = 0; j < row; j++) {
                 let curBit = (container[j] >> i) & 1;
                 if (curBit !== lastBit) ret++;
                 lastBit = curBit;
             }
+            if (lastBit === 0) ret++;
         }
         return ret;
     }
@@ -970,11 +972,11 @@ export default class Tetris {
         let row = this.gridConfig.row;
         let col = this.gridConfig.col;
         let wellSums = 0;
-        for (let i = 1; i < col - 1; i++) {
+        for (let i = 0; i < col; i++) {
             for (let j = 0; j < row; j++) {
                 if (((container[j] >> i) & 1) === 0 &&
-                    ((container[j] >> (i + 1)) & 1) === 1 &&
-                    ((container[j] >> (i - 1)) & 1) === 1) {
+                    (i === col - 1 || ((container[j] >> (i + 1)) & 1) === 1) &&
+                    (i === 0 || ((container[j] >> (i - 1)) & 1 === 1))) {
                     let k = j;
                     while(k < row && ((container[k] >> i) & 1) === 0) {
                         wellSums++; k++;
@@ -1021,6 +1023,36 @@ export default class Tetris {
         this.curBrickCenterPos = [];
         this.curBrickRawInfo = {};
         this.curBrickInfo = {};
+    }
+
+    getSnapshot() {
+        const { grids, curBrickInfo } = this;
+        let gridsStr = '     0  1  2  3  4  5  6  7  8  9 \n     ----------------------------\n';
+        let brickStr = '     0  1  2  3  4  5  6  7  8  9 \n     ----------------------------\n';
+
+        grids.forEach((row, rowIndex) => {
+            let head = `${rowIndex}`;
+
+            head = head.padStart(2, 0);
+            gridsStr += `${head} |`;
+            brickStr += `${head} |`;
+
+            row.forEach((grid, colIndex) => {
+                gridsStr += grid ? ' # ' : ' . ';
+
+                const isBrickPos =
+                    curBrickInfo.pos.findIndex(([x, y]) => rowIndex === y && colIndex === x) > -1;
+                brickStr += isBrickPos ? ' # ' : ' . ';
+            });
+
+            gridsStr += '\n';
+            brickStr += '\n';
+        });
+
+        return {
+            gridsStr,
+            brickStr,
+        };
     }
 
     initBrickInfoList() {
@@ -1171,7 +1203,7 @@ export default class Tetris {
         curBrickInfoList.forEach((curBrickInfo) => {
             let curPos = [...curBrickInfo.brickInfo.pos]
             let centPos = [4, 0];
-            const {left, right, bottom, top} = this.getBrickGapsInfo(container, curPos)
+            const {left, right} = this.getBrickGapsInfo(container, curPos)
             let baseMoveList = [];
             for (let i = 0; i < (curBrickInfo.stateIndex - startState + 4) % 4; i++) {
                 baseMoveList.push([2, 0]);
