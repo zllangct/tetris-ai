@@ -870,13 +870,14 @@ export default class Tetris {
         return { isValid, brickCount: this.brickCount };
     }
 
-    calcScore(container, height) {
+    calcScore(container, height, pos) {
         let landingHeight = height;
-        let rowsEliminated = this.rowEliminatedNums(container); // 消行个数
+        let rowsEliminated = this.rowEliminatedNums(container, pos); // 消行个数
         let rowTransitions = this.rowTransitions(container); // 行变换
         let colTransitions = this.colTransitions(container); // 列变化
         let emptyHoles = this.emptyHoles(container); // 空洞个数
         let wellNums = this.wellNums(container); // 井
+        // console.log(pos, landingHeight, rowsEliminated, rowTransitions, colTransitions, emptyHoles, wellNums);
 
         return (-4.500158825082766) * landingHeight +
             (3.4181268101392694) * rowsEliminated +
@@ -898,14 +899,25 @@ export default class Tetris {
         return container;
     }
 
-    rowEliminatedNums(container) {
+    rowEliminatedNums(container, pos) {
         let col = this.gridConfig.col;
         let filled = (1 << col) - 1;
         let res = 0;
+        let mark = 0;
         for (let i = 0; i < container.length; i++) {
-            if (container[i] === filled) res++;
+            if (container[i] === filled) {
+                res++;
+                mark |= (1 << i);
+            }
         }
-        return res;
+        let count = 0;
+        for (let i = 0; i < pos.length; i++) {
+            const [y, x] = pos[i];
+            if ((mark >> x) & 1) {
+                count++;
+            }
+        }
+        return res * count;
     }
 
     rowTransitions(container) {
@@ -1184,7 +1196,7 @@ export default class Tetris {
                 moveList.push([1, bottom]);
                 let tmpActionList = this.pushActionList(actionList, moveList);
                 let mergedContainer = this.getMergeContainer(container, finalPos);
-                let curScore = this.calcScore(mergedContainer, this.gridConfig.row - afterCenterPos[1]);
+                let curScore = this.calcScore(mergedContainer, this.gridConfig.row - afterCenterPos[1], finalPos);
                 mergedContainer = this.updateContainer(mergedContainer);
                 let tmpResult = this.findStep(mergedContainer, curScore, tmpActionList, curIndex + 1, thinkDep - 1);
                 if (tmpResult === null) continue;
@@ -1194,5 +1206,21 @@ export default class Tetris {
             }
         })
         return result;
+    }
+
+    printGrids() {
+        let row = this.gridConfig.row;
+        let col = this.gridConfig.col;
+        for (let i = 0; i < row; i++) {
+            let strList = [];
+            for (let j = 0; j < col; j++) {
+                if (this.grids[i][j] !== "") {
+                    strList.push("#")
+                } else {
+                    strList.push(".")
+                }
+            }
+            console.log(strList.join(" "))
+        }
     }
 }

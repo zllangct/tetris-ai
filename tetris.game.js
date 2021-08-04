@@ -93,9 +93,9 @@ export default class Game {
         for (let i = 0; i < 1000; i++) {
             let ok = await this.processRun(i);
             if (!ok) break;
-            if (i % 10 === 0) {
-                console.log(this.tetris.score)
-            }
+            // this.tetris.printGrids();
+            // console.log("-----------------------------------------------\n")
+            if (i % 10 === 0) console.log(this.tetris.score)
         }
     }
 
@@ -112,7 +112,7 @@ export default class Game {
             container.push(val);
         }
 
-        let result = this.tetris.findStep(container, 0, [], index, 1)
+        let result = this.tetris.findStep(container, 0, [], index, 3)
         let actionList = result.actionList[0];
         for (let i = 0; i < actionList.length; i++) {
             const {type, len} = actionList[i];
@@ -299,8 +299,8 @@ export default class Game {
                 if (!type || (type && !count)) {
                     ret.isValid = false;
                     ret.msg = `存在无法识别的操作指令 或 操作指令没有带数字（第 ${i + 1} 个指令为 "${
-              record[i]
-            }"，请修改）`;
+                        record[i]
+                    }"，请修改）`;
                     return ret;
                 }
             }
@@ -311,8 +311,8 @@ export default class Game {
         if (opCountIndex > -1) {
             ret.isValid = false;
             ret.msg = `两个方块之间的操作次数必须在区间 (0,100] 内（第 ${
-          opCountIndex + 1
-        } 个方块的操作次数为：${opCountArr[opCountIndex]}）`;
+                opCountIndex + 1
+            } 个方块的操作次数为：${opCountArr[opCountIndex]}）`;
         }
 
         return ret;
@@ -432,7 +432,7 @@ ${brickStr}`;
                     this.start();
                 }
                 break;
-                // 回车键：暂停/继续
+            // 回车键：暂停/继续
             case 13:
                 this.toggleAutoRun();
                 break;
@@ -444,23 +444,23 @@ ${brickStr}`;
                     this.playStep('left', 1, false);
                     break;
 
-                    // 方向右键：右移动
+                // 方向右键：右移动
                 case 39:
                     this.playStep('right', 1, false);
                     break;
 
-                    // 方向下键：下移动
+                // 方向下键：下移动
                 case 40:
                     this.playStep('down', 1, false);
                     break;
 
-                    // 方向上键：旋转
+                // 方向上键：旋转
                 case 38:
                     this.tetris.rotate();
                     this.render();
                     break;
 
-                    // 空格键：下坠方块
+                // 空格键：下坠方块
                 case 32:
                     this.tetris.drop();
                     this.playStep('down', 1);
