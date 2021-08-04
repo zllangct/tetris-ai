@@ -67,12 +67,16 @@ export default class Game {
         this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
         this.tetris.initGrids(); // 初始格子
         this.tetris.initBrick(); // 初始方块
-        if(useDQN){
+        if (useDQN) {
             this.tetris.thinkDQN();
-        }else{
+        } else {
             this.tetris.think(thinkDeepth); //ai
         }
         await this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
+    }
+
+    async train() {
+
     }
 
     /**
@@ -122,6 +126,7 @@ export default class Game {
             const { topTouched, isRoundLimited } = this.tetris.update();
 
             console.log(this.tetris.getSnapshot().gridsStr);
+            console.log("score : " + this.tetris.score);
 
             // 触顶或者超过游戏的最大方块数量后，结束游戏
             if (topTouched || isRoundLimited) {
@@ -134,7 +139,11 @@ export default class Game {
                 // 未触顶且未超过游戏的最大方块数量，新建方块，并判断新建的方块是否合法
                 const { isValid, brickCount } = this.tetris.initBrick();
 
-                this.tetris.think(thinkDeepth);
+                if (useDQN) {
+                    this.tetris.thinkDQN();
+                } else {
+                    this.tetris.think(thinkDeepth);
+                }
 
                 isStepValid = isValid;
 
