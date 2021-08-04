@@ -50,7 +50,7 @@ export default class Game {
      * @param {*}
      * @return {*}
      */
-    async start() {
+    start() {
         //test get all bricks ===========
 
         // this.tetris.getAllBrick();
@@ -61,11 +61,10 @@ export default class Game {
 
         if (status === 'starting') return; // 游戏已在重启中，等待重启完成，不作处理
         this.mode = 'play'; // 设置为游戏模式（另有回放模式 replay）
-        await this.reset(); // 重置相关状态和数据，且播放清屏动画
         // this.play();
         this.tetris.setStatus('running'); // 设定 tetris 为 running 状态
         this.tetris.initGrids(); // 初始格子
-        await this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
+        this.startAutoRun(true); // 启动对应模式下的 timer，自动运行游戏
     }
 
     /**
@@ -88,19 +87,19 @@ export default class Game {
      * @param {boolean} isInit 是否是初始行为
      * @return {*}
      */
-    async startAutoRun(isInit) {
+    startAutoRun(isInit) {
         this.tetris.initBrickInfoList();
         for (let i = 0; i < 10000; i++) {
-            let ok = await this.processRun(i);
+            let ok = this.processRun(i);
             if (!ok) break;
             // this.tetris.printGrids();
             // console.log("-----------------------------------------------\n")
-            if (i % 10 === 0) console.log(this.tetris.score)
+            if (i % 10 === 0) console.log(this.tetris.score, i);
         }
         this.gameOver("sb")
     }
 
-    async processRun(index) {
+    processRun(index) {
         this.tetris.initBrick();
         let container = [];
         let maxHeight = 0;
@@ -118,9 +117,12 @@ export default class Game {
         }
 
         let result = this.tetris.findStep(container, 0, [], index, 2)
+        if (result === null) {
+            this.gameOver("end")
+        }
         let actionList = result.actionList[0];
         for (let i = 0; i < actionList.length; i++) {
-            const {type, len} = actionList[i];
+            let {type, len} = actionList[i];
             if (type === 'rotate') {
                 this.tetris.rotate();
             } else {

@@ -870,14 +870,19 @@ export default class Tetris {
         return { isValid, brickCount: this.brickCount };
     }
 
-    checkIsTop(pos) {
-        let ok = 0;
-        pos.forEach(([x, y]) => {
-            if (y === 0) {
-                ok = 1;
-            }
-        })
-        return ok;
+    checkTop(pos) {
+        for (let i = 0; i < pos.length; i++) {
+            const [x, y] = pos[i];
+            if (y <= 0) return true;
+        }
+        return false;
+    }
+
+    getMaxHeight(container) {
+        let row = this.gridConfig.row;
+        for (let i = 0; i < container.length; i++) {
+            if (container[i] > 0) return row - i;
+        }
     }
 
     calcScore(container, height, pos) {
@@ -889,16 +894,28 @@ export default class Tetris {
         let wellNums = this.wellNums(container); // 井
         // console.log(pos, landingHeight, rowsEliminated, rowTransitions, colTransitions, emptyHoles, wellNums);
 
-        if (rowsEliminated === 0 && this.checkIsTop(pos)) {
+        if (rowsEliminated === 0 && this.checkTop(pos)) {
             return -99999999;
         }
 
-        return (-4.500158825082766) * landingHeight +
-            (3.4181268101392694) * rowsEliminated +
-            (-3.2178882868487753) * rowTransitions +
-            (-9.348695305445199) * colTransitions +
-            (-7.899265427351652) * emptyHoles +
-            (-3.3855972247263626) * wellNums
+        let A = -4.500158825082766;
+        let B = 3.4181268101392694;
+        let C = -3.2178882868487753;
+        let D = -9.348695305445199;
+        let E = -7.899265427351652;
+        let F = -13.3855972247263626;
+
+        let maxHeight = this.getMaxHeight(container);
+        if (maxHeight <= 9) {
+            B = 0;
+        }
+
+        return A * landingHeight +
+            B * rowsEliminated +
+            C * rowTransitions +
+            D * colTransitions +
+            E * emptyHoles +
+            F * wellNums
     }
 
     updateContainer(container) {
@@ -970,14 +987,14 @@ export default class Tetris {
         let row = this.gridConfig.row;
         let col = this.gridConfig.col;
         let holes = 0;
-        let rowHoles = 0;
-        let prevRow = 0;
-        for (let i = 0; i < row; i++) {
-            rowHoles = ~container[i] & (prevRow | rowHoles);
-            for (let j = 0; j < col; j++) {
-                holes += ((rowHoles >> j) & 1);
+        for (let i = 0; i < col; i++) {
+            let j = 0;
+            while(j < row && !this.isFilled(container, i, j)) j++;
+            for (; j < row; j++) {
+                if (!this.isFilled(container, i, j)) {
+                    holes++;
+                }
             }
-            prevRow = container[i];
         }
         return holes;
     }
@@ -987,16 +1004,18 @@ export default class Tetris {
         let col = this.gridConfig.col;
         let wellSums = 0;
         for (let i = 0; i < col; i++) {
+            let t = 0;
             for (let j = 0; j < row; j++) {
                 if (((container[j] >> i) & 1) === 0 &&
                     (i === col - 1 || ((container[j] >> (i + 1)) & 1) === 1) &&
                     (i === 0 || ((container[j] >> (i - 1)) & 1 === 1))) {
-                    let k = j;
-                    while(k < row && ((container[k] >> i) & 1) === 0) {
-                        wellSums++; k++;
-                    }
+                    t++;
+                } else {
+                    wellSums += t * (t + 1) / 2;
+                    t = 0;
                 }
             }
+            wellSums += t * (t + 1) / 2;
         }
         return wellSums;
     }
@@ -1054,8 +1073,7 @@ export default class Tetris {
             row.forEach((grid, colIndex) => {
                 gridsStr += grid ? ' # ' : ' . ';
 
-                const isBrickPos =
-                    curBrickInfo.pos.findIndex(([x, y]) => rowIndex === y && colIndex === x) > -1;
+                const isBrickPos = curBrickInfo.pos.findIndex(([x, y]) => rowIndex === y && colIndex === x) > -1;
                 brickStr += isBrickPos ? ' # ' : ' . ';
             });
 
@@ -1072,7 +1090,7 @@ export default class Tetris {
     initBrickInfoList() {
         let randomNum = this.curRandomNum;
         const curBrickCenterPos = defaultBrickCenterPos.slice();
-        for (let i = 0; i <= 10000; i++) {
+        for (let i = 0; i <= 10050; i++) {
             randomNum = this.getRandomNum(randomNum);
             let info = this.getBrickInfo(randomNum, i, curBrickCenterPos);
             let {shapeIndex, stateIndex} = this.getShapeInfo(randomNum, i);
@@ -1178,11 +1196,18 @@ export default class Tetris {
         return validCount === 4;
     }
 
-    // dir 表示方向，0水平，1垂直, 2旋转
     pushActionList(oriActionList, moveList) {
         let ret = [...oriActionList];
+        let actionList = this.makeActionList(moveList);
+        ret.push(actionList);
+        return ret;
+    }
+
+    // dir 表示方向，0水平，1垂直, 2旋转
+    makeActionList(moveList) {
         let actionList = [];
-        moveList.forEach(([dir, offset]) => {
+        for (let i = 0; i < moveList.length; i++) {
+            const [dir, offset] = moveList[i];
             if (dir === 0) {
                 actionList.push({
                     type: offset < 0 ? "left":"right",
@@ -1199,9 +1224,63 @@ export default class Tetris {
                     len: 0,
                 })
             }
-        })
-        ret.push(actionList);
-        return ret;
+        }
+        return actionList;
+    }
+
+    checkInitPos(container, pos) {
+        let col = this.gridConfig.col;
+        let row = this.gridConfig.row;
+        for (let i = 0; i < pos.length; i++) {
+            const [x, y] = pos[i];
+            if (x < 0 || x >= col) return false;
+            if (y >= row) return false;
+            if (y >= 0 && this.isFilled(container, x, y)) return false;
+        }
+        return true;
+    }
+
+    handleRotate(posA, posB, container, offset) {
+        for (let i = -10; i <= 10; i++) {
+            const posAM = posA.map(([x, y]) => {
+                return [x + i + offset, y];
+            })
+            const posBM = posB.map(([x, y]) => {
+                return [x + i + offset, y];
+            })
+            if (this.checkInitPos(container, posAM) && this.checkInitPos(container, posBM)) {
+                return i;
+            }
+        }
+        return -1000;
+    }
+
+    getBaseMoveList(curBrickInfoList, container, Index) {
+        if (Index === 0) return {
+            isValid: true,
+            offset: 0,
+            baseMoveList: [],
+        };
+        let moveList = [];
+        let offset = 0;
+        for (let i = 1; i <= Index; i++) {
+            let curOffset = this.handleRotate(curBrickInfoList[i - 1].brickInfo.pos, curBrickInfoList[i].brickInfo.pos, container, offset);
+            if (curOffset === -1000) {
+                return {
+                    isValid: false,
+                    offset: 0,
+                    baseMoveList : [],
+                };
+            }
+            offset += curOffset;
+            moveList.push([0, curOffset]);
+            moveList.push([2, 0]);
+        }
+        return {
+            isValid: true,
+            offset: offset,
+            baseMoveList: moveList,
+        }
     }
 
     findStep(container, score, actionList, curIndex, thinkDep) {
@@ -1213,21 +1292,26 @@ export default class Tetris {
         }
         let result = null;
         let curBrickInfoList = this.brickInfoList[curIndex];
-        let startState = curBrickInfoList[0].stateIndex;
-        curBrickInfoList.forEach((curBrickInfo) => {
+        for (let itemIndex = 0; itemIndex < curBrickInfoList.length; itemIndex++) {
+            let curBrickInfo = curBrickInfoList[itemIndex];
             let curPos = [...curBrickInfo.brickInfo.pos]
-            let centPos = [4, 0];
-            const {left, right} = this.getBrickGapsInfo(container, curPos)
-            let baseMoveList = [];
-            for (let i = 0; i < (curBrickInfo.stateIndex - startState + 4) % 4; i++) {
-                baseMoveList.push([2, 0]);
+            let {isValid, baseMoveList, offset} = this.getBaseMoveList(curBrickInfoList, container, itemIndex);
+            if (!isValid) {
+                continue;
             }
-            for (let i = -left; i <= right; i++) {
+            curPos = curPos.map(([x, y]) => {
+                return [x + offset, y];
+            })
+            let centPos = [4 + offset, 0];
+            for (let i = -10; i <= 10; i++) {
                 const moveList = [...baseMoveList];
                 const afterCenterPos = [...centPos];
                 const afterMovePos = curPos.map(([x, y]) => {
                     return [x + i, y];
                 })
+                if (!this.checkInitPos(container, afterMovePos)) {
+                    continue;
+                }
 
                 const {bottom} = this.getBrickGapsInfo(container, afterMovePos);
                 const finalPos = afterMovePos.map(([x, y]) => {
@@ -1250,7 +1334,7 @@ export default class Tetris {
                     result = tmpResult;
                 }
             }
-        })
+        }
         return result;
     }
 
