@@ -943,7 +943,7 @@ export default class Tetris {
             if (type === 'D' && stepCount > 1) {
                 this.opRecord.push(`D${stepCount}`);
             } else {
-                this.opRecord.push(`${type}${type !== 'N' ?  stepCount: ''}`);
+                this.opRecord.push(`${type}${type !== 'N' ? stepCount : ''}`);
             }
         }
     }

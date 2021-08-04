@@ -283,9 +283,8 @@ export default class Game {
                 // 指令无法识别 或 非 N 指令不带数字时
                 if (!type || (type && !count)) {
                     ret.isValid = false;
-                    ret.msg = `存在无法识别的操作指令 或 操作指令没有带数字（第 ${i + 1} 个指令为 "${
-              record[i]
-            }"，请修改）`;
+                    ret.msg = `存在无法识别的操作指令 或 操作指令没有带数字（第 ${i + 1} 个指令为 "${record[i]
+                        }"，请修改）`;
                     return ret;
                 }
             }
@@ -295,9 +294,8 @@ export default class Game {
         const opCountIndex = opCountArr.findIndex((val) => val === 0 || val > 100);
         if (opCountIndex > -1) {
             ret.isValid = false;
-            ret.msg = `两个方块之间的操作次数必须在区间 (0,100] 内（第 ${
-          opCountIndex + 1
-        } 个方块的操作次数为：${opCountArr[opCountIndex]}）`;
+            ret.msg = `两个方块之间的操作次数必须在区间 (0,100] 内（第 ${opCountIndex + 1
+                } 个方块的操作次数为：${opCountArr[opCountIndex]}）`;
         }
 
         return ret;
