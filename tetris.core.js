@@ -870,6 +870,16 @@ export default class Tetris {
         return { isValid, brickCount: this.brickCount };
     }
 
+    checkIsTop(pos) {
+        let ok = 0;
+        pos.forEach(([x, y]) => {
+            if (y === 0) {
+                ok = 1;
+            }
+        })
+        return ok;
+    }
+
     calcScore(container, height, pos) {
         let landingHeight = height;
         let rowsEliminated = this.rowEliminatedNums(container, pos); // 消行个数
@@ -878,6 +888,10 @@ export default class Tetris {
         let emptyHoles = this.emptyHoles(container); // 空洞个数
         let wellNums = this.wellNums(container); // 井
         // console.log(pos, landingHeight, rowsEliminated, rowTransitions, colTransitions, emptyHoles, wellNums);
+
+        if (rowsEliminated === 0 && this.checkIsTop(pos)) {
+            return -99999999;
+        }
 
         return (-4.500158825082766) * landingHeight +
             (3.4181268101392694) * rowsEliminated +
@@ -1230,7 +1244,7 @@ export default class Tetris {
                 let mergedContainer = this.getMergeContainer(container, finalPos);
                 let curScore = this.calcScore(mergedContainer, this.gridConfig.row - afterCenterPos[1], finalPos);
                 mergedContainer = this.updateContainer(mergedContainer);
-                let tmpResult = this.findStep(mergedContainer, curScore, tmpActionList, curIndex + 1, thinkDep - 1);
+                let tmpResult = this.findStep(mergedContainer, score + curScore, tmpActionList, curIndex + 1, thinkDep - 1);
                 if (tmpResult === null) continue;
                 if (result === null || tmpResult.score > result.score) {
                     result = tmpResult;

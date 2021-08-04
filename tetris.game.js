@@ -117,7 +117,7 @@ export default class Game {
             container.push(val);
         }
 
-        let result = this.tetris.findStep(container, 0, [], index, 1)
+        let result = this.tetris.findStep(container, 0, [], index, 2)
         let actionList = result.actionList[0];
         for (let i = 0; i < actionList.length; i++) {
             const {type, len} = actionList[i];
