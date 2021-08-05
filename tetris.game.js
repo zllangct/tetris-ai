@@ -18,6 +18,8 @@
  * 注：游戏使用的坐标系为 canvas 坐标系（坐标原点在左上角）详见：https://developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial/Drawing_shapes
  *
  */
+import fs from 'fs';
+
 const defaultPlayFreq = 10;
 const defaultReplayFreq = 10;
 const thinkDeepth = 2;
@@ -124,7 +126,7 @@ export default class Game {
         }
         let actionList = result.actionList[0];
         for (let i = 0; i < actionList.length; i++) {
-            let {type, len} = actionList[i];
+            let { type, len } = actionList[i];
             if (type === 'rotate') {
                 this.tetris.rotate();
             } else {
@@ -134,6 +136,7 @@ export default class Game {
         const { topTouched, isRoundLimited } = this.tetris.update();
         if (topTouched || isRoundLimited) {
             console.log("gameOver");
+            this.gameOver();
             return 0;
         }
         return 1;
@@ -366,6 +369,11 @@ ${gridsStr}
 最后时刻的砖块位置信息：
 ${brickStr}`;
 
+        let record = this.tetris.opRecord.join(",");
+        fs.writeFile(`result/${score}.txt`, record, (err) => {});
+
+        // this.playRecord(record.split(','));
+
         console.log(msg);
     }
 
@@ -444,7 +452,7 @@ ${brickStr}`;
                     this.start();
                 }
                 break;
-            // 回车键：暂停/继续
+                // 回车键：暂停/继续
             case 13:
                 this.toggleAutoRun();
                 break;
@@ -456,23 +464,23 @@ ${brickStr}`;
                     this.playStep('left', 1, false);
                     break;
 
-                // 方向右键：右移动
+                    // 方向右键：右移动
                 case 39:
                     this.playStep('right', 1, false);
                     break;
 
-                // 方向下键：下移动
+                    // 方向下键：下移动
                 case 40:
                     this.playStep('down', 1, false);
                     break;
 
-                // 方向上键：旋转
+                    // 方向上键：旋转
                 case 38:
                     this.tetris.rotate();
                     this.render();
                     break;
 
-                // 空格键：下坠方块
+                    // 空格键：下坠方块
                 case 32:
                     this.tetris.drop();
                     this.playStep('down', 1);
