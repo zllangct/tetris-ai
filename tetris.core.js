@@ -1301,13 +1301,15 @@ export default class Tetris {
             }
             vis.push(tmp);
         }
-        seq.push({
-            centerPos: [4, 0],
-            pos: curBrickInfoList[0].brickInfo.pos,
-            opRecord: "",
-            shapeIndex: 0,
-        });
-        vis[0][4][0] = 0;
+        if (this.checkInitPos(container, curBrickInfoList[0].brickInfo.pos)) {
+            seq.push({
+                centerPos: [4, 0],
+                pos: curBrickInfoList[0].brickInfo.pos,
+                opRecord: "",
+                shapeIndex: 0,
+            });
+            vis[0][4][0] = 0;
+        }
         while(head < seq.length) {
             let curItem = seq[head];
             let curPos = [...curItem.pos];
