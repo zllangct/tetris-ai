@@ -885,6 +885,19 @@ export default class Tetris {
         }
     }
 
+    totalBrickCount(container) {
+        let count = 0;
+        let col = this.gridConfig.col;
+        for (let i = 0; i < container.length; i++) {
+            for (let j = 0; j < col; j++) {
+                if ((container[i] >> j) & 1) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     calcScore(container, height, pos) {
         let landingHeight = height;
         let rowsEliminated = this.rowEliminatedNums(container, pos); // 消行个数
@@ -892,6 +905,7 @@ export default class Tetris {
         let colTransitions = this.colTransitions(container); // 列变化
         let emptyHoles = this.emptyHoles(container); // 空洞个数
         let wellNums = this.wellNums(container); // 井
+        let brickCount = this.totalBrickCount(container);
         // console.log(pos, landingHeight, rowsEliminated, rowTransitions, colTransitions, emptyHoles, wellNums);
 
         if (rowsEliminated === 0 && this.checkTop(pos)) {
@@ -899,14 +913,15 @@ export default class Tetris {
         }
 
         let A = -4.500158825082766;
-        let B = 3.4181268101392694;
+        let B = 6.4181268101392694;
         let C = -3.2178882868487753;
         let D = -9.348695305445199;
         let E = -7.899265427351652;
         let F = -3.3855972247263626;
+        let G = 2.5;
 
         let maxHeight = this.getMaxHeight(container);
-        if (maxHeight <= 8) {
+        if (maxHeight <= 10) {
             B = -10;
         }
 
@@ -915,7 +930,8 @@ export default class Tetris {
             C * rowTransitions +
             D * colTransitions +
             E * emptyHoles +
-            F * wellNums
+            F * wellNums +
+            G * brickCount;
     }
 
     updateContainer(container) {
@@ -931,6 +947,13 @@ export default class Tetris {
     }
 
     rowEliminatedNums(container, pos) {
+        const score = {
+            0: 0,
+            1 : 1,
+            2: 3,
+            3: 6,
+            4: 10,
+        }
         let col = this.gridConfig.col;
         let filled = (1 << col) - 1;
         let res = 0;
@@ -948,7 +971,7 @@ export default class Tetris {
                 count++;
             }
         }
-        return res * count;
+        return score[res] * count;
     }
 
     rowTransitions(container) {
