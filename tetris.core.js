@@ -903,11 +903,11 @@ export default class Tetris {
         let C = -3.2178882868487753;
         let D = -9.348695305445199;
         let E = -7.899265427351652;
-        let F = -13.3855972247263626;
+        let F = -3.3855972247263626;
 
         let maxHeight = this.getMaxHeight(container);
-        if (maxHeight <= 9) {
-            B = 0;
+        if (maxHeight <= 8) {
+            B = -10;
         }
 
         return A * landingHeight +
@@ -1208,6 +1208,9 @@ export default class Tetris {
         let actionList = [];
         for (let i = 0; i < moveList.length; i++) {
             const [dir, offset] = moveList[i];
+            if (dir <= 1 && offset === 0) {
+                continue;
+            }
             if (dir === 0) {
                 actionList.push({
                     type: offset < 0 ? "left":"right",

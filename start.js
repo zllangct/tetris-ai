@@ -3,4 +3,5 @@ import Game  from "./tetris.game.js"
 
 let tetris = new Tetris({});
 let game = new Game(null, tetris, {});
-await game.start();
+game.start();
+console.log(game.tetris.score);

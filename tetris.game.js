@@ -94,9 +94,8 @@ export default class Game {
             if (!ok) break;
             // this.tetris.printGrids();
             // console.log("-----------------------------------------------\n")
-            if (i % 10 === 0) console.log(this.tetris.score, i);
         }
-        this.gameOver("sb")
+        // this.gameOver("sb")
     }
 
     processRun(index) {
