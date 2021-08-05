@@ -122,15 +122,19 @@ export default class Game {
 
         let result = this.tetris.findStep(container, 0, [], index, 2)
         if (result === null) {
+            console.log(this.tetris.getValidPosList(container, this.tetris.brickInfoList[index]));
             this.gameOver("end")
+            return 0;
         }
-        let actionList = result.actionList[0];
-        for (let i = 0; i < actionList.length; i++) {
-            let { type, len } = actionList[i];
-            if (type === 'rotate') {
-                this.tetris.rotate();
-            } else {
-                this.tetris.move(type, len)
+        if (result.actionList.length > 0) {
+            let actionList = result.actionList[0];
+            for (let i = 0; i < actionList.length; i++) {
+                let { type, len } = actionList[i];
+                if (type === 'rotate') {
+                    this.tetris.rotate();
+                } else {
+                    this.tetris.move(type, len)
+                }
             }
         }
         const { topTouched, isRoundLimited } = this.tetris.update();
