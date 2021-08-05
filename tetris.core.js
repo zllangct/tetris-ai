@@ -1286,6 +1286,157 @@ export default class Tetris {
         }
     }
 
+    getValidPosList(container, curBrickInfoList) {
+        let col = this.gridConfig.col;
+        let row = this.gridConfig.row;
+        let shapeNum = curBrickInfoList.length;
+        let head = 0, tail = 0;
+        let seq = [];
+        let vis = [];
+        for (let i = 0; i < row; i++) {
+            let tmp = [];
+            for (let j = 0; j < col; j++) {
+                let arr = new Array(shapeNum).fill(0);
+                tmp.push(arr);
+            }
+            vis.push(tmp);
+        }
+        seq.push({
+            centerPos: [4, 0],
+            pos: curBrickInfoList[0].brickInfo.pos,
+            opRecord: "",
+            shapeIndex: 0,
+        });
+        vis[0][4][0] = 0;
+        while(head < seq.length) {
+            let curItem = seq[head];
+            let curPos = [...curItem.pos];
+            const [centerX, centerY] = curItem.centerPos;
+            let curShapeIndex = curItem.shapeIndex;
+            let curOpRecord = curItem.opRecord;
+
+            // 尝试旋转
+            let nextShapeIndex = (curShapeIndex + 1) % shapeNum;
+            let nextRawPos = curBrickInfoList[nextShapeIndex].brickRawInfo.pos;
+            let rotatePos = nextRawPos.map(([x, y]) => {
+                return [x + centerX, y + centerY];
+            });
+            if (this.checkInitPos(container, rotatePos) && vis[centerY][centerX][nextShapeIndex] === 0) {
+                vis[centerY][centerX][nextShapeIndex] = 1;
+                seq.push({
+                    centerPos: [centerX, centerY],
+                    pos: rotatePos,
+                    opRecord: curOpRecord === "" ? "O" : curOpRecord + ",O",
+                    shapeIndex: nextShapeIndex,
+                })
+            }
+
+            // 尝试往左
+            let leftPos = curPos.map(([x, y]) => {
+                return [x - 1, y];
+            });
+            if (this.checkInitPos(container, leftPos) && vis[centerY][centerX - 1][curShapeIndex] === 0) {
+                vis[centerY][centerX - 1][curShapeIndex] = 1;
+                seq.push({
+                    centerPos: [centerX - 1, centerY],
+                    pos: leftPos,
+                    opRecord: curOpRecord === "" ? "L" : curOpRecord + ",L",
+                    shapeIndex: curShapeIndex,
+                })
+            }
+
+            // 尝试往右
+            let rightPos = curPos.map(([x, y]) => {
+                return [x + 1, y];
+            });
+            if (this.checkInitPos(container, rightPos) && vis[centerY][centerX + 1][curShapeIndex] === 0) {
+                vis[centerY][centerX + 1][curShapeIndex] = 1;
+                seq.push({
+                    centerPos: [centerX + 1, centerY],
+                    pos: rightPos,
+                    opRecord: curOpRecord === "" ? "R" : curOpRecord + ",R",
+                    shapeIndex: curShapeIndex,
+                })
+            }
+
+            // 尝试往下
+            let downPos = curPos.map(([x, y]) => {
+                return [x, y + 1];
+            });
+            if (this.checkInitPos(container, downPos) && vis[centerY + 1][centerX][curShapeIndex] === 0) {
+                vis[centerY + 1][centerX][curShapeIndex] = 1;
+                seq.push({
+                    centerPos: [centerX, centerY + 1],
+                    pos: downPos,
+                    opRecord: curOpRecord === "" ? "D" : curOpRecord + ",D",
+                    shapeIndex: curShapeIndex,
+                })
+            }
+            head++;
+        }
+        let finalPos = [];
+        for (let i = 0; i < seq.length; i++) {
+            const {pos} = seq[i];
+            // 如果还能往下走，过滤掉
+            const downPos = pos.map(([x, y]) => {
+                return [x, y + 1];
+            });
+            if (this.finalBrickPosValid(container, downPos)) {
+                continue;
+            }
+            seq[i].opRecord = this.mergeOpRecord(seq[i].opRecord);
+            finalPos.push(seq[i]);
+        }
+        /*
+        console.log(finalPos.length);
+        for (let i = 0; i < finalPos.length; i++) {
+            console.log(finalPos[i]);
+        }*/
+        return finalPos;
+    }
+
+    mergeOpRecord(opRecord) {
+        if (opRecord === "") {
+            return [];
+        }
+        let opList = opRecord.split(",");
+        let ret = [];
+        let dir = {
+            "L": 0,
+            "R": 0,
+            "D": 1,
+            "O": 2,
+        }
+        let dirVal = {
+            "L": -1,
+            "R": 1,
+            "D": 1,
+            "O": 0,
+        }
+        for (let i = 0; i < opList.length; i++) {
+            let curOp = opList[i];
+            let j = i, curDir = dir[curOp];
+            let val = 0;
+            while(curDir <= 1 && j < opList.length && dir[opList[j]] === curDir) {
+                val += dirVal[opList[j]];
+                j++;
+            }
+            ret.push([curDir, val]);
+            if (curDir <= 1) {
+                i = j - 1;
+            }
+        }
+        return ret;
+    }
+
+    testPosList(index) {
+        let row = this.gridConfig.row;
+        this.initGrids(); // 初始格子
+        this.initBrickInfoList();
+        let container = new Array(row).fill(0);
+        this.getValidPosList(container, this.brickInfoList[index]);
+    }
+
     findStep(container, score, actionList, curIndex, thinkDep) {
         if (thinkDep === 0) {
             return {
@@ -1294,48 +1445,17 @@ export default class Tetris {
             }
         }
         let result = null;
-        let curBrickInfoList = this.brickInfoList[curIndex];
-        for (let itemIndex = 0; itemIndex < curBrickInfoList.length; itemIndex++) {
-            let curBrickInfo = curBrickInfoList[itemIndex];
-            let curPos = [...curBrickInfo.brickInfo.pos]
-            let {isValid, baseMoveList, offset} = this.getBaseMoveList(curBrickInfoList, container, itemIndex);
-            if (!isValid) {
-                continue;
-            }
-            curPos = curPos.map(([x, y]) => {
-                return [x + offset, y];
-            })
-            let centPos = [4 + offset, 0];
-            for (let i = -10; i <= 10; i++) {
-                const moveList = [...baseMoveList];
-                const afterCenterPos = [...centPos];
-                const afterMovePos = curPos.map(([x, y]) => {
-                    return [x + i, y];
-                })
-                if (!this.checkInitPos(container, afterMovePos)) {
-                    continue;
-                }
-
-                const {bottom} = this.getBrickGapsInfo(container, afterMovePos);
-                const finalPos = afterMovePos.map(([x, y]) => {
-                    return [x, y + bottom];
-                })
-                if (!this.finalBrickPosValid(container, finalPos)) {
-                    continue;
-                }
-                afterCenterPos[0] += i;
-                afterCenterPos[1] += bottom;
-                moveList.push([0, i]);
-                moveList.push([1, bottom]);
-                let tmpActionList = this.pushActionList(actionList, moveList);
-                let mergedContainer = this.getMergeContainer(container, finalPos);
-                let curScore = this.calcScore(mergedContainer, this.gridConfig.row - afterCenterPos[1], finalPos);
-                mergedContainer = this.updateContainer(mergedContainer);
-                let tmpResult = this.findStep(mergedContainer, score + curScore, tmpActionList, curIndex + 1, thinkDep - 1);
-                if (tmpResult === null) continue;
-                if (result === null || tmpResult.score > result.score) {
-                    result = tmpResult;
-                }
+        let validPosList = this.getValidPosList(container, this.brickInfoList[curIndex]);
+        for (let i = 0; i < validPosList.length; i++) {
+            const {pos, opRecord, centerPos} = validPosList[i];
+            let tmpActionList = this.pushActionList(actionList, opRecord)
+            let mergedContainer = this.getMergeContainer(container, pos);
+            let curScore = this.calcScore(mergedContainer, this.gridConfig.row - centerPos[1], pos);
+            mergedContainer = this.updateContainer(mergedContainer);
+            let tmpResult = this.findStep(mergedContainer, score + curScore, tmpActionList, curIndex + 1, thinkDep - 1);
+            if (tmpResult === null) continue;
+            if (result === null || tmpResult.score > result.score) {
+                result = tmpResult;
             }
         }
         return result;

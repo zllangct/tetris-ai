@@ -94,8 +94,11 @@ export default class Game {
             if (!ok) break;
             // this.tetris.printGrids();
             // console.log("-----------------------------------------------\n")
+            if (i % 100 === 0) {
+                console.log(this.tetris.score, i);
+            }
         }
-        // this.gameOver("sb")
+        this.gameOver("sb")
     }
 
     processRun(index) {
@@ -200,7 +203,10 @@ export default class Game {
         // this.replay();
         this.tetris.setStatus('running');
         this.tetris.initGrids();
-        this.startAutoRun(true);
+        let len = record.length;
+        for (let i = 0; i < len; i++) {
+            this.replayStep();
+        }
     }
 
     /**
