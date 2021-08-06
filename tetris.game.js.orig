@@ -120,20 +120,29 @@ export default class Game {
             container.push(val);
         }
 
-        let result = this.tetris.findStep(container, 0, [], index, 4)
+        let result = this.tetris.findStep(container, 0, [], index, 2)
         if (result === null) {
             this.gameOver("end")
-            return 0;
         }
+<<<<<<< HEAD
+        let actionList = result.actionList[0];
+        for (let i = 0; i < actionList.length; i++) {
+            let { type, len } = actionList[i];
+            if (type === 'rotate') {
+                this.tetris.rotate();
+            } else {
+                this.tetris.move(type, len)
+=======
         if (result.actionList.length > 0) {
             let actionList = result.actionList[0];
             for (let i = 0; i < actionList.length; i++) {
-                let { type, len } = actionList[i];
+                let {type, len} = actionList[i];
                 if (type === 'rotate') {
                     this.tetris.rotate();
                 } else {
                     this.tetris.move(type, len)
                 }
+>>>>>>> e646d2c (update)
             }
         }
         const { topTouched, isRoundLimited } = this.tetris.update();

@@ -918,11 +918,13 @@ export default class Tetris {
         let D = -9.348695305445199;
         let E = -7.899265427351652;
         let F = -3.3855972247263626;
-        let G = 2.5;
+        let G = 2.8;
 
         let maxHeight = this.getMaxHeight(container);
-        if (maxHeight <= 10) {
+        if (maxHeight <= 10 || brickCount <= 80) {
             B = -10;
+        } else if (maxHeight >= 12 || brickCount > 110) {
+            B = 20;
         }
 
         return A * landingHeight +
@@ -1407,6 +1409,9 @@ export default class Tetris {
                 return [x, y + 1];
             });
             if (this.finalBrickPosValid(container, downPos)) {
+                continue;
+            }
+            if (!this.finalBrickPosValid(container, pos)) {
                 continue;
             }
             seq[i].opRecord = this.mergeOpRecord(seq[i].opRecord);
